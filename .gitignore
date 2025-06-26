@@ -1,0 +1,38 @@
+# Build artifacts
+dist/
+build/
+*.spec
+
+# macOS
+.DS_Store
+*.app
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# PyInstaller
+*.manifest
+*.spec
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Test files
+testfile.txt
+testfile.txt.gpg
+*_decrypted.txt
