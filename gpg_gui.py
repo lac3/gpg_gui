@@ -1,22 +1,37 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, scrolledtext
 import subprocess
 import os
-import platform
-from version import VERSION
+import tempfile
+from install_gpg import install_gpg
+
+VERSION = "2.0"
 
 class GPGGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("GPG File Encryption/Decryption")
-        self.root.geometry("400x200")
+        self.root.geometry("500x300")
+        
+        # Center the window on screen
+        self.root.update_idletasks()
+        x = (self.root.winfo_screenwidth() - self.root.winfo_width()) // 2
+        y = (self.root.winfo_screenheight() - self.root.winfo_height()) // 2
+        self.root.geometry(f"+{x}+{y}")
+        
+        # Bring window to front and give it focus
+        self.root.lift()
+        self.root.focus_force()
         
         # Find GPG executable
         self.gpg_path = self.find_gpg()
         if not self.gpg_path:
-            messagebox.showerror("Error", "GPG not found. Please install GPG first:\n\nmacOS: brew install gnupg\nUbuntu/Debian: sudo apt-get install gnupg\nCentOS/RHEL: sudo yum install gnupg")
-            root.destroy()
-            return
+            if install_gpg():
+                # Re-check for GPG after installation
+                self.gpg_path = self.find_gpg()
+            if not self.gpg_path:
+                messagebox.showerror("Error", "GPG installation failed")
+                return
         
         # Create main frame
         main_frame = tk.Frame(root, padx=20, pady=20)
@@ -30,12 +45,12 @@ class GPGGUI:
         button_frame = tk.Frame(main_frame)
         button_frame.pack(pady=20)
         
-        tk.Button(button_frame, text="Encrypt File", command=lambda: self.process_file("encrypt"), width=15, height=2).pack(side='left', padx=10)
-        tk.Button(button_frame, text="Decrypt File", command=lambda: self.process_file("decrypt"), width=15, height=2).pack(side='left', padx=10)
+        tk.Button(button_frame, text="Create & Encrypt", command=self.create_and_encrypt, width=15, height=2).pack(side='left', padx=10)
+        tk.Button(button_frame, text="Decrypt & View", command=lambda: self.decrypt(), width=15, height=2).pack(side='left', padx=10)
         
-        # About button
-        about_button = tk.Button(main_frame, text="About", command=self.show_about, width=10)
-        about_button.pack(pady=10)
+        # Close button
+        close_button = tk.Button(main_frame, text="Close", command=root.destroy, width=10)
+        close_button.pack(pady=10)
         
     def find_gpg(self):
         """Find the GPG executable path"""
@@ -66,7 +81,7 @@ class GPGGUI:
         """Show custom About dialog"""
         about_window = tk.Toplevel(self.root)
         about_window.title("About GPG GUI")
-        about_window.geometry("400x300")
+        about_window.geometry("400x350")
         about_window.resizable(False, False)
         
         # Center the window
@@ -82,7 +97,7 @@ class GPGGUI:
         tk.Label(content_frame, text="Version " + VERSION, font=("Arial", 12)).pack()
         
         # Description
-        tk.Label(content_frame, text="A simple graphical interface for GPG file encryption and decryption.", 
+        tk.Label(content_frame, text="A secure graphical interface for GPG file encryption and decryption.", 
                 wraplength=350, justify='center').pack(pady=15)
         
         # Copyright
@@ -91,8 +106,10 @@ class GPGGUI:
         
         # Features
         features_text = """Features:
-• Simple two-button interface
-• Automatic file extension handling
+• Encrypt files to disk
+• Decrypt and view content in memory
+• Create and encrypt new content
+• No decrypted files saved to disk
 • Secure passphrase input
 • Cross-platform support"""
         
@@ -108,38 +125,120 @@ class GPGGUI:
         y = self.root.winfo_y() + (self.root.winfo_height() - about_window.winfo_height()) // 2
         about_window.geometry(f"+{x}+{y}")
         
-    def process_file(self, action):
+    def decrypt(self):
         # Get input file
-        if action == "encrypt":
-            filetypes = [("Text files", "*.txt"), ("All files", "*.*")]
-        else:
-            filetypes = [("GPG files", "*.gpg")]
-            
+        filetypes = [("GPG files", "*.gpg")]
+
         input_file = filedialog.askopenfilename(
-            title=f"Select file to {action}",
+            title=f"Select file to decrypt",
             filetypes=filetypes
         )
         
         if not input_file:
             return
             
-        # Set output file automatically
-        if action == "encrypt":
-            output_file = input_file + ".gpg"
-        else:
-            # For decryption, remove .gpg and add _decrypted to avoid conflicts
-            base_name = input_file[:-4]  # Remove .gpg extension
-            output_file = base_name + "_decrypted.txt"
-            
         # Get passphrase
-        passphrase = self.get_passphrase(action)
+        passphrase = self.get_passphrase("decrypt")
         if not passphrase:
             return
             
         # Process the file
+        try:                # Decrypt to memory and show in window
+            self.decrypt_and_show(input_file, passphrase)
+                
+        except subprocess.CalledProcessError as e:
+            messagebox.showerror("Error", f"decryption failed")
+        except Exception as e:
+            messagebox.showerror("Error", f"Unexpected error: {str(e)}")
+    
+    def decrypt_and_show(self, input_file, passphrase):
+        """Decrypt file and show content in a text window"""
         try:
-            if action == "encrypt":
-                # For symmetric encryption, we need to use --symmetric
+            # Create a temporary file for decryption ("Named" option because GPG needs a file to write to
+            with tempfile.NamedTemporaryFile(mode='w+b', delete=False) as temp_file:
+                temp_path = temp_file.name
+            
+            # Decrypt to temporary file
+            subprocess.run([
+                self.gpg_path,
+                "--batch",
+                "--yes",
+                "--decrypt",
+                "--passphrase", passphrase,
+                "--output", temp_path,
+                input_file
+            ], check=True)
+            
+            # Read the decrypted content
+            with open(temp_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Clean up temporary file immediately
+            os.unlink(temp_path)
+            
+            # Show content in window
+            self.show_content_window(content, f"Decrypted: {os.path.basename(input_file)}")
+            
+        except subprocess.CalledProcessError:
+            messagebox.showerror("Error", "Decryption failed - wrong passphrase?")
+        except Exception as e:
+            messagebox.showerror("Error", f"Unexpected error: {str(e)}")
+    
+    def create_and_encrypt(self):
+        """Create new content and encrypt it"""
+        # Create content window
+        content_window = tk.Toplevel(self.root)
+        content_window.title("Create New Content")
+        content_window.geometry("600x500")
+        
+        # Center the window
+        content_window.transient(self.root)
+        content_window.grab_set()
+        
+        # Content frame
+        content_frame = tk.Frame(content_window, padx=20, pady=20)
+        content_frame.pack(expand=True, fill='both')
+        
+        # Label
+        tk.Label(content_frame, text="Enter your content to encrypt:", font=("Arial", 12)).pack(pady=10)
+        
+        # Text area
+        text_area = scrolledtext.ScrolledText(content_frame, wrap=tk.WORD, width=70, height=20)
+        text_area.pack(expand=True, fill='both', pady=10)
+        text_area.focus()
+        
+        # Button frame
+        button_frame = tk.Frame(content_frame)
+        button_frame.pack(pady=10)
+        
+        def save_and_encrypt():
+            content = text_area.get("1.0", tk.END).strip()
+            if not content:
+                messagebox.showwarning("Warning", "Please enter some content to encrypt.")
+                return
+            
+            # Get save location
+            output_file = filedialog.asksaveasfilename(
+                title="Save encrypted file as",
+                defaultextension=".gpg",
+                filetypes=[("GPG files", "*.gpg")]
+            )
+            
+            if not output_file:
+                return
+            
+            # Get passphrase
+            passphrase = self.get_passphrase("encrypt")
+            if not passphrase:
+                return
+            
+            try:
+                # Create temporary file with content
+                with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as temp_file:
+                    temp_file.write(content)
+                    temp_path = temp_file.name
+                
+                # Encrypt the temporary file
                 subprocess.run([
                     self.gpg_path,
                     "--batch",
@@ -147,25 +246,172 @@ class GPGGUI:
                     "--symmetric",
                     "--passphrase", passphrase,
                     "--output", output_file,
-                    input_file
+                    temp_path
                 ], check=True)
-            else:
-                # For decryption
+                
+                # Clean up temporary file
+                os.unlink(temp_path)
+                
+                messagebox.showinfo("Success", f"Content encrypted and saved as: {output_file}")
+                content_window.destroy()
+                
+            except subprocess.CalledProcessError:
+                messagebox.showerror("Error", "Encryption failed")
+            except Exception as e:
+                messagebox.showerror("Error", f"Unexpected error: {str(e)}")
+            finally:
+                # Ensure temp file is cleaned up
+                if 'temp_path' in locals() and os.path.exists(temp_path):
+                    os.unlink(temp_path)
+        
+        def cancel():
+            content_window.destroy()
+        
+        # Buttons
+        tk.Button(button_frame, text="Encrypt & Save", command=save_and_encrypt).pack(side='left', padx=10)
+        tk.Button(button_frame, text="Cancel", command=cancel).pack(side='left', padx=10)
+        
+        # Center the window
+        content_window.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() - content_window.winfo_width()) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - content_window.winfo_height()) // 2
+        content_window.geometry(f"+{x}+{y}")
+    
+    def backup_existing_file(self, file_path):
+        """Backup existing file by adding timestamp to filename"""
+        if os.path.exists(file_path):
+            # Get file info
+            base_name = os.path.splitext(file_path)[0]
+            extension = os.path.splitext(file_path)[1]
+            
+            # Create timestamp
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            # Create backup filename
+            backup_path = f"{base_name}_{timestamp}{extension}"
+            
+            # Rename existing file
+            os.rename(file_path, backup_path)
+            
+            return backup_path
+        return None
+    
+    def show_content_window(self, content, title, original_file=None):
+        """Show content in a text window with modify option"""
+        content_window = tk.Toplevel(self.root)
+        content_window.title(title)
+        content_window.geometry("600x500")
+        
+        # Center the window
+        content_window.transient(self.root)
+        content_window.grab_set()
+        
+        # Content frame
+        content_frame = tk.Frame(content_window, padx=20, pady=20)
+        content_frame.pack(expand=True, fill='both')
+        
+        # Label
+        tk.Label(content_frame, text="Decrypted content:", font=("Arial", 12)).pack(pady=10)
+        
+        # Text area (initially read-only)
+        text_area = scrolledtext.ScrolledText(content_frame, wrap=tk.WORD, width=70, height=20, state='disabled')
+        text_area.pack(expand=True, fill='both', pady=10)
+        
+        # Enable temporarily to set content
+        text_area.config(state='normal')
+        text_area.insert("1.0", content)
+        text_area.config(state='disabled')
+        
+        # Button frame
+        button_frame = tk.Frame(content_frame)
+        button_frame.pack(pady=10)
+        
+        def modify_content():
+            # Enable editing
+            text_area.config(state='normal')
+            # Change button text
+            modify_btn.config(text="Save & Encrypt")
+            modify_btn.config(command=save_and_encrypt)
+            # Disable close button during editing
+            close_btn.config(state='disabled')
+        
+        def save_and_encrypt():
+            # Get modified content
+            modified_content = text_area.get("1.0", tk.END).strip()
+            
+            # Get save location
+            output_file = filedialog.asksaveasfilename(
+                title="Save encrypted file as",
+                defaultextension=".gpg",
+                filetypes=[("GPG files", "*.gpg"), ("All files", "*.*")]
+            )
+            
+            if not output_file:
+                return
+            
+            # Check if file exists and backup if needed
+            backup_path = self.backup_existing_file(output_file)
+            if backup_path:
+                messagebox.showinfo("Backup Created", 
+                    f"Existing file backed up as:\n{os.path.basename(backup_path)}")
+            
+            # Get passphrase
+            passphrase = self.get_passphrase("encrypt")
+            if not passphrase:
+                return
+            
+            try:
+                # Create temporary file with modified content
+                with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as temp_file:
+                    temp_file.write(modified_content)
+                    temp_path = temp_file.name
+                
+                # Encrypt the temporary file
                 subprocess.run([
                     self.gpg_path,
                     "--batch",
                     "--yes",
-                    "--decrypt",
+                    "--symmetric",
                     "--passphrase", passphrase,
                     "--output", output_file,
-                    input_file
+                    temp_path
                 ], check=True)
                 
-            messagebox.showinfo("Success", f"File {action}ed successfully!\nSaved as: {output_file}")
-        except subprocess.CalledProcessError as e:
-            messagebox.showerror("Error", f"{action.title()}ion failed: {str(e)}")
-        except Exception as e:
-            messagebox.showerror("Error", f"Unexpected error: {str(e)}")
+                # Clean up temporary file
+                os.unlink(temp_path)
+                
+                success_message = f"Modified content encrypted and saved as: {output_file}"
+                if backup_path:
+                    success_message += f"\n\nPrevious version backed up as: {os.path.basename(backup_path)}"
+                
+                messagebox.showinfo("Success", success_message)
+                content_window.destroy()
+                
+            except subprocess.CalledProcessError:
+                messagebox.showerror("Error", "Encryption failed")
+            except Exception as e:
+                messagebox.showerror("Error", f"Unexpected error: {str(e)}")
+            finally:
+                # Ensure temp file is cleaned up
+                if 'temp_path' in locals() and os.path.exists(temp_path):
+                    os.unlink(temp_path)
+        
+        def close_window():
+            content_window.destroy()
+        
+        # Buttons
+        modify_btn = tk.Button(button_frame, text="Modify", command=modify_content)
+        modify_btn.pack(side='left', padx=10)
+        
+        close_btn = tk.Button(button_frame, text="Close", command=close_window, width=10)
+        close_btn.pack(side='left', padx=10)
+        
+        # Center the window
+        content_window.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() - content_window.winfo_width()) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - content_window.winfo_height()) // 2
+        content_window.geometry(f"+{x}+{y}")
             
     def get_passphrase(self, action):
         # Create a new window for passphrase input
