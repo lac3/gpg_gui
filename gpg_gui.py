@@ -3,6 +3,7 @@ from tkinter import filedialog, messagebox, scrolledtext
 import subprocess
 import os
 import tempfile
+import json
 from install_gpg import install_gpg
 
 VERSION = "2.0"
@@ -33,6 +34,9 @@ class GPGGUI:
             if not self.gpg_path:
                 messagebox.showerror("Error", "GPG installation failed")
                 return
+        
+        # Load last used directory
+        self.last_directory = self.load_last_directory()
         
         # Create main frame
         main_frame = tk.Frame(root, padx=20, pady=20)
@@ -280,15 +284,19 @@ class GPGGUI:
 
     def save_encrypted_content(self, content, window_title="Save encrypted file"):
         """Handle the complete save process: filename selection, backup, and encryption"""
-        # Step 1: Get directory from user (default to home folder)
+        # Step 1: Get directory from user (use last directory or home folder)
+        initial_dir = self.last_directory if self.last_directory else os.path.expanduser("~")
         directory = filedialog.askdirectory(
             title="Select directory to save file",
-            initialdir=os.path.expanduser("~")
+            initialdir=initial_dir
         )
         
         if not directory:
             return False
             
+        # Save the selected directory for next time
+        self.save_last_directory(directory)
+        
         # Step 2: Get filename from user via custom dialog
         filename = self.get_filename_dialog("Enter filename (without .gpg extension)", directory)
         
@@ -391,6 +399,20 @@ class GPGGUI:
         
         self.root.wait_window(filename_window)
         return result[0]
+
+    def load_last_directory(self):
+        """Load the last used directory from a file"""
+        config_file = os.path.expanduser("~") + "/.gpg_gui_config"
+        if os.path.exists(config_file):
+            with open(config_file, 'r') as f:
+                return f.read().strip()
+        return None
+    
+    def save_last_directory(self, directory):
+        """Save the last used directory to a file"""
+        config_file = os.path.expanduser("~") + "/.gpg_gui_config"
+        with open(config_file, 'w') as f:
+            f.write(directory)
 
 if __name__ == "__main__":
     root = tk.Tk()
