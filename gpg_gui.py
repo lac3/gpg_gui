@@ -11,13 +11,14 @@ class GPGGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("GPG File Encryption/Decryption")
-        self.root.geometry("500x300")
+        self.root.geometry("500x300+400+200")
         
-        # Center the window on screen
-        self.root.update_idletasks()
-        x = (self.root.winfo_screenwidth() - self.root.winfo_width()) // 2
-        y = (self.root.winfo_screenheight() - self.root.winfo_height()) // 2
-        self.root.geometry(f"+{x}+{y}")
+        # Set app icon
+        icon_path = "GpgGui.png"
+        if os.path.exists(icon_path):
+            from tkinter import PhotoImage
+            icon = PhotoImage(file=icon_path)
+            self.root.iconphoto(True, icon)
         
         # Bring window to front and give it focus
         self.root.lift()
@@ -160,7 +161,7 @@ class GPGGUI:
         """Show content in a text window with modify option"""
         content_window = tk.Toplevel(self.root)
         content_window.title(title)
-        content_window.geometry("600x500")
+        content_window.geometry("600x500+350+150")
         
         # Center the window
         content_window.transient(self.root)
@@ -219,12 +220,6 @@ class GPGGUI:
         close_btn = tk.Button(button_frame, text="Close", command=close_window, width=10)
         close_btn.pack(side='left', padx=10)
         
-        # Center the window
-        content_window.update_idletasks()
-        x = self.root.winfo_x() + (self.root.winfo_width() - content_window.winfo_width()) // 2
-        y = self.root.winfo_y() + (self.root.winfo_height() - content_window.winfo_height()) // 2
-        content_window.geometry(f"+{x}+{y}")
-
         if content is None:
             # For new files, start in edit mode
             text_area.config(state='normal')
@@ -236,7 +231,7 @@ class GPGGUI:
         # Create a new window for passphrase input
         pass_window = tk.Toplevel(self.root)
         pass_window.title(f"Enter Passphrase for {action.title()}ion")
-        pass_window.geometry("400x180")
+        pass_window.geometry("400x180+450+300")
         
         # Center the window
         pass_window.transient(self.root)
@@ -270,18 +265,15 @@ class GPGGUI:
         def on_cancel():
             pass_window.destroy()
             
+        # Bind Enter key to OK button
+        pass_entry.bind('<Return>', lambda event: on_ok())
+        
         # Buttons
         button_frame = tk.Frame(pass_window)
         button_frame.pack(pady=10)
         
         tk.Button(button_frame, text="OK", command=on_ok).pack(side='left', padx=10)
         tk.Button(button_frame, text="Cancel", command=on_cancel).pack(side='left', padx=10)
-        
-        # Center the window and wait for it to be closed
-        pass_window.update_idletasks()
-        x = self.root.winfo_x() + (self.root.winfo_width() - pass_window.winfo_width()) // 2
-        y = self.root.winfo_y() + (self.root.winfo_height() - pass_window.winfo_height()) // 2
-        pass_window.geometry(f"+{x}+{y}")
         
         self.root.wait_window(pass_window)
         return result[0]
@@ -359,15 +351,9 @@ class GPGGUI:
         """Simple dialog to get filename from user"""
         filename_window = tk.Toplevel(self.root)
         filename_window.title(title)
-        filename_window.geometry("500x200")
+        filename_window.geometry("500x200+400+250")
         filename_window.transient(self.root)
         filename_window.grab_set()
-        
-        # Center the window
-        filename_window.update_idletasks()
-        x = self.root.winfo_x() + (self.root.winfo_width() - filename_window.winfo_width()) // 2
-        y = self.root.winfo_y() + (self.root.winfo_height() - filename_window.winfo_height()) // 2
-        filename_window.geometry(f"+{x}+{y}")
         
         # Frame
         frame = tk.Frame(filename_window, padx=20, pady=20)
@@ -393,6 +379,9 @@ class GPGGUI:
         def on_cancel():
             filename_window.destroy()
             
+        # Bind Enter key to OK button
+        entry.bind('<Return>', lambda event: on_ok())
+        
         # Buttons
         button_frame = tk.Frame(frame)
         button_frame.pack(pady=10)
