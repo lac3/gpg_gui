@@ -21,9 +21,13 @@ class GPGGUI:
         # Set app icon
         icon_path = "GpgGui.png"
         if os.path.exists(icon_path):
-            from tkinter import PhotoImage
-            icon = PhotoImage(file=icon_path)
-            self.root.iconphoto(True, icon)
+            try:
+                from tkinter import PhotoImage
+                icon = PhotoImage(file=icon_path)
+                self.root.iconphoto(True, icon)
+            except Exception:
+                # Silently fail if icon loading fails
+                pass
         
         # Bring window to front and give it focus
         self.root.lift()
@@ -433,6 +437,11 @@ class GPGGUI:
             f.write(directory)
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = GPGGUI(root)
-    root.mainloop() 
+    try:
+        root = tk.Tk()
+        app = GPGGUI(root)
+        root.mainloop()
+    except Exception as e:
+        print(f"Application error: {e}")
+        import traceback
+        traceback.print_exc() 

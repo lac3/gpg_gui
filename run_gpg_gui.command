@@ -35,7 +35,7 @@ check_homebrew
 # Find Python executable
 PYTHON_CMD=$(find_python)
 if [ $? -ne 0 ]; then
-    echo "Python not found. Please instal from python.org"
+    echo "Python not found. Please install it from python.org"
     exit 0
 fi
 
