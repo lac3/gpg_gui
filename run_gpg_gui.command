@@ -3,6 +3,17 @@
 # Change to script directory
 cd "$(dirname "$0")"
 
+# Function to check and install Homebrew
+check_homebrew() {
+    if ! command -v brew &> /dev/null; then
+        echo "Homebrew not found. Installing..."
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        # Add Homebrew to PATH for current session
+        eval "$(/opt/homebrew/bin/brew shellenv)"
+    fi
+    echo "Homebrew found"
+}
+
 # Function to find Python
 find_python() {
     # Check for python3 first
@@ -18,13 +29,14 @@ find_python() {
     return 1
 }
 
+# Check and install Homebrew
+check_homebrew
+
 # Find Python executable
 PYTHON_CMD=$(find_python)
 if [ $? -ne 0 ]; then
-    echo "Python not found. Please install Python 3.7+ first:"
-    echo "  Visit: https://www.python.org/downloads/"
-    echo "  Or use Homebrew: brew install python"
-    exit 1
+    echo "Python not found. Please instal from python.org"
+    exit 0
 fi
 
 echo "Using Python: $($PYTHON_CMD --version)"
@@ -33,13 +45,14 @@ echo "Using Python: $($PYTHON_CMD --version)"
 if [ -d "venv" ]; then
     echo "Activating virtual environment..."
     source venv/bin/activate
-    PYTHON_CMD="python"  # Use 'python' when venv is active
+    # Keep using python3 even in venv for macOS compatibility
+    PYTHON_CMD="python3"
 fi
 
 # Check if GPG is available
 if ! command -v gpg &> /dev/null; then
-    echo "GPG not found. Attempting to install..."
-    $PYTHON_CMD install_gpg.py
+    echo "GPG not found. Installing using Homebrew..."
+    brew install gnupg
     if [ $? -ne 0 ]; then
         echo "Failed to install GPG. Please install it manually:"
         echo "  brew install gnupg"

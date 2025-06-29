@@ -1,10 +1,14 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox, scrolledtext
+from tkinter import filedialog, messagebox, scrolledtext, ttk
 import subprocess
 import os
 import tempfile
 import json
 from install_gpg import install_gpg
+import platform
+
+# Set environment variable to suppress deprecation warning
+os.environ['TK_SILENCE_DEPRECATION'] = '1'
 
 VERSION = "2.0"
 
@@ -50,11 +54,14 @@ class GPGGUI:
         button_frame = tk.Frame(main_frame)
         button_frame.pack(pady=20)
         
-        tk.Button(button_frame, text="Create & Encrypt", command=lambda: self.show_content_window(None, "New File Content"), width=15, height=2).pack(side='left', padx=10)
-        tk.Button(button_frame, text="Decrypt & View", command=self.decrypt, width=15, height=2).pack(side='left', padx=10)
+        tk.Button(button_frame, text="Create & Encrypt", command=lambda: self.show_content_window(None, "New File Content"), 
+                 relief='raised', borderwidth=2).pack(side='left', padx=10)
+        tk.Button(button_frame, text="Decrypt & View", command=self.decrypt, 
+                 relief='raised', borderwidth=2).pack(side='left', padx=10)
         
         # Close button
-        close_button = tk.Button(main_frame, text="Close", command=root.destroy, width=10)
+        close_button = tk.Button(main_frame, text="Close", command=root.destroy, 
+                               relief='raised', borderwidth=2)
         close_button.pack(pady=10)
         
     def find_gpg(self):
@@ -218,10 +225,12 @@ class GPGGUI:
             content_window.destroy()
         
         # Buttons
-        modify_btn = tk.Button(button_frame, text="Modify", command=modify_content)
+        modify_btn = tk.Button(button_frame, text="Modify", command=modify_content, 
+                              relief='raised', borderwidth=2)
         modify_btn.pack(side='left', padx=10)
         
-        close_btn = tk.Button(button_frame, text="Close", command=close_window, width=10)
+        close_btn = tk.Button(button_frame, text="Close", command=close_window, 
+                              relief='raised', borderwidth=2)
         close_btn.pack(side='left', padx=10)
         
         if content is None:
@@ -242,7 +251,8 @@ class GPGGUI:
         pass_window.grab_set()
         
         # Add widgets
-        tk.Label(pass_window, text=f"Enter passphrase for {action}ion:").pack(pady=10)
+        tk.Label(pass_window, text=f"Enter passphrase for {action}ion:", 
+                bg='#f0f0f0').pack(pady=10)
         
         pass_var = tk.StringVar()
         show_pass = tk.BooleanVar()
@@ -276,8 +286,8 @@ class GPGGUI:
         button_frame = tk.Frame(pass_window)
         button_frame.pack(pady=10)
         
-        tk.Button(button_frame, text="OK", command=on_ok).pack(side='left', padx=10)
-        tk.Button(button_frame, text="Cancel", command=on_cancel).pack(side='left', padx=10)
+        tk.Button(button_frame, text="OK", command=on_ok, relief='raised', borderwidth=2).pack(side='left', padx=10)
+        tk.Button(button_frame, text="Cancel", command=on_cancel, relief='raised', borderwidth=2).pack(side='left', padx=10)
         
         self.root.wait_window(pass_window)
         return result[0]
@@ -360,6 +370,7 @@ class GPGGUI:
         filename_window = tk.Toplevel(self.root)
         filename_window.title(title)
         filename_window.geometry("500x200+400+250")
+        
         filename_window.transient(self.root)
         filename_window.grab_set()
         
@@ -394,11 +405,18 @@ class GPGGUI:
         button_frame = tk.Frame(frame)
         button_frame.pack(pady=10)
         
-        tk.Button(button_frame, text="OK", command=on_ok).pack(side='left', padx=10)
-        tk.Button(button_frame, text="Cancel", command=on_cancel).pack(side='left', padx=10)
+        tk.Button(button_frame, text="OK", command=on_ok, relief='raised', borderwidth=2).pack(side='left', padx=10)
+        tk.Button(button_frame, text="Cancel", command=on_cancel, relief='raised', borderwidth=2).pack(side='left', padx=10)
         
         self.root.wait_window(filename_window)
         return result[0]
+
+    def apply_macos_theme(self, window):
+        """Apply consistent macOS theming to any window"""
+        if platform.system() == "Darwin":
+            window.configure(bg='#f5f5f5')
+            # Force update to ensure background is applied
+            window.update_idletasks()
 
     def load_last_directory(self):
         """Load the last used directory from a file"""
