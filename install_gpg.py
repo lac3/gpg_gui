@@ -1,16 +1,7 @@
-import os
 import subprocess
-import sys
-import platform
 
 def install_gpg():
-    """Install GPG on macOS using Homebrew"""
-    system = platform.system().lower()
-    
-    if system != "darwin":  # macOS only
-        print(f"Unsupported system: {system}. This installer is for macOS only.")
-        return False
-    
+    """Install GPG on macOS using Homebrew"""    
     print("Installing GPG on macOS...")
     
     # Check if Homebrew is available

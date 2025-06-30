@@ -1,23 +1,20 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext, ttk
-import subprocess
+from gpg_process import GpgProcess
 import os
-import tempfile
-import json
-from install_gpg import install_gpg
-import platform
-
 # Set environment variable to suppress deprecation warning
 os.environ['TK_SILENCE_DEPRECATION'] = '1'
 
 VERSION = "2.0"
 
-class GPGGUI:
+class GpgGui:
     def __init__(self, root):
         self.root = root
         self.root.title("GPG File Encryption/Decryption")
         self.root.geometry("500x300+400+200")
-        
+        self.passphrase = None
+        self.output_file = None
+
         # Set app icon
         icon_path = "GpgGui.png"
         if os.path.exists(icon_path):
@@ -28,21 +25,16 @@ class GPGGUI:
             except Exception:
                 # Silently fail if icon loading fails
                 pass
-        
+
+        try:
+            self.gpg_process = GpgProcess()
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to initialize GPG process: {str(e)}")
+                
         # Bring window to front and give it focus
         self.root.lift()
         self.root.focus_force()
-        
-        # Find GPG executable
-        self.gpg_path = self.find_gpg()
-        if not self.gpg_path:
-            if install_gpg():
-                # Re-check for GPG after installation
-                self.gpg_path = self.find_gpg()
-            if not self.gpg_path:
-                messagebox.showerror("Error", "GPG installation failed")
-                return
-        
+                
         # Load last used directory
         self.last_directory = self.load_last_directory()
         
@@ -68,31 +60,6 @@ class GPGGUI:
                                relief='raised', borderwidth=2)
         close_button.pack(pady=10)
         
-    def find_gpg(self):
-        """Find the GPG executable path"""
-        # Common GPG paths
-        possible_paths = [
-            "/opt/homebrew/bin/gpg",  # Homebrew on Apple Silicon
-            "/usr/local/bin/gpg",     # Homebrew on Intel
-            "/usr/bin/gpg",           # System GPG
-            "/opt/local/bin/gpg",     # MacPorts
-        ]
-        
-        # Check if GPG is in PATH
-        try:
-            result = subprocess.run(["which", "gpg"], capture_output=True, text=True, check=True)
-            if result.stdout.strip():
-                return result.stdout.strip()
-        except subprocess.CalledProcessError:
-            pass
-        
-        # Check common paths
-        for path in possible_paths:
-            if os.path.exists(path):
-                return path
-        
-        return None
-        
     def decrypt(self):
         # Get input file
         filetypes = [("GPG files", "*.gpg")]
@@ -104,54 +71,25 @@ class GPGGUI:
         
         if not input_file:
             return
-            
+        self.gpg_process.file_path = input_file
         # Get passphrase
         passphrase = self.get_passphrase("decrypt")
         if not passphrase:
             return
+        self.gpg_process.passphrase = passphrase
             
         # Process the file
-        try:                # Decrypt to memory and show in window
-            self.decrypt_and_show(input_file, passphrase)
-                
-        except subprocess.CalledProcessError as e:
-            messagebox.showerror("Error", f"decryption failed")
-        except Exception as e:
-            messagebox.showerror("Error", f"Unexpected error: {str(e)}")
-    
-    def decrypt_and_show(self, input_file, passphrase):
-        """Decrypt file and show content in a text window"""
         try:
-            # Create a temporary file for decryption ("Named" option because GPG needs a file to write to
-            with tempfile.NamedTemporaryFile(mode='w+b', delete=False) as temp_file:
-                temp_path = temp_file.name
-            
-            # Decrypt to temporary file
-            subprocess.run([
-                self.gpg_path,
-                "--batch",
-                "--yes",
-                "--decrypt",
-                "--passphrase", passphrase,
-                "--output", temp_path,
-                input_file
-            ], check=True)
-            
-            # Read the decrypted content
-            with open(temp_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-            
-            # Clean up temporary file immediately
-            os.unlink(temp_path)
-            
-            # Show content in window
-            self.show_content_window(content, f"Decrypted: {os.path.basename(input_file)}")
-            
-        except subprocess.CalledProcessError:
-            messagebox.showerror("Error", "Decryption failed - wrong passphrase?")
+            content = self.gpg_process.decrypt()
         except Exception as e:
-            messagebox.showerror("Error", f"Unexpected error: {str(e)}")
-    
+            messagebox.showerror("Error", f"Unexpected error decrypting file: {str(e)}")
+            return
+        
+        if content:
+            self.show_content_window(content, f"Decrypted: {os.path.basename(input_file)}")
+        else:
+            messagebox.showerror("Error", "Could not get decryption content")
+        
     def backup_existing_file(self, file_path):
         """Backup existing file by adding timestamp to filename"""
         if os.path.exists(file_path):
@@ -173,6 +111,10 @@ class GPGGUI:
         return None
     
     def show_content_window(self, content, title):
+        # If content is None for now, it will be stored in a new output file
+        if content is None:
+            self.output_file = None
+
         """Show content in a text window with modify option"""
         content_window = tk.Toplevel(self.root)
         content_window.title(title)
@@ -222,7 +164,7 @@ class GPGGUI:
                 return
             
             # Use the new save method
-            if self.save_encrypted_content(modified_content, "Save encrypted file as"):
+            if self.save_encrypted_content(modified_content):
                 content_window.destroy()
         
         def close_window():
@@ -245,6 +187,10 @@ class GPGGUI:
             close_btn.config(state='disabled')
             
     def get_passphrase(self, action):
+        # If passphrase was already entered when decrypting the file, use it
+        if action == "encrypt" and self.passphrase:
+            return self.passphrase
+        
         # Create a new window for passphrase input
         pass_window = tk.Toplevel(self.root)
         pass_window.title(f"Enter Passphrase for {action.title()}ion")
@@ -294,80 +240,70 @@ class GPGGUI:
         tk.Button(button_frame, text="Cancel", command=on_cancel, relief='raised', borderwidth=2).pack(side='left', padx=10)
         
         self.root.wait_window(pass_window)
+
+        # If decrypting (for opening the file), store passphrase for when the content will be modified and reencrypted
+        # If encrypting (for saving the file), reinitialize the passphrase
+        if action == "decrypt":
+            self.passphrase = result[0]
+        else:
+            self.passphrase = None  # Reinitialize the passphrase
         return result[0]
 
-    def save_encrypted_content(self, content, window_title="Save encrypted file"):
-        """Handle the complete save process: filename selection, backup, and encryption"""
-        # Step 1: Get directory from user (use last directory or home folder)
+    def get_output_file(self):
+        if self.output_file:
+            return self.output_file
+        
         initial_dir = self.last_directory if self.last_directory else os.path.expanduser("~")
         directory = filedialog.askdirectory(
             title="Select directory to save file",
             initialdir=initial_dir
         )
-        
         if not directory:
             return False
             
-        # Save the selected directory for next time
         self.save_last_directory(directory)
         
-        # Step 2: Get filename from user via custom dialog
         filename = self.get_filename_dialog("Enter filename (without .gpg extension)", directory)
-        
         if not filename:
             return False
-            
-        # Construct full path
+
         if not filename.endswith('.gpg'):
             filename += '.gpg'
+
         output_file = os.path.join(directory, filename)
-        
+        self.output_file = output_file
+        return output_file
+
+    def save_encrypted_content(self, content):
+        """Handle the complete save process: filename selection, backup, and encryption"""
+
+        # Get output file
+        output_file = self.get_output_file()
+        if not output_file:
+            return False
+        self.gpg_process.file_path = output_file
         
         # Get passphrase
         passphrase = self.get_passphrase("encrypt")
         if not passphrase:
             return False
-        
+        self.gpg_process.passphrase = passphrase
+
         # Handle backup if file exists
         backup_path = self.backup_existing_file(output_file)
 
-        # Encrypt and save
         try:
-            # Create temporary file with content
-            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as temp_file:
-                temp_file.write(content)
-                temp_path = temp_file.name
-            
-            # Encrypt the temporary file
-            subprocess.run([
-                self.gpg_path,
-                "--batch",
-                "--symmetric",
-                "--passphrase", passphrase,
-                "--output", output_file,
-                temp_path
-            ], check=True)
-            
-            # Clean up temporary file
-            os.unlink(temp_path)
-            
+            self.gpg_process.encrypt(content)
+
             success_message = f"Content encrypted and saved as: {output_file}"
             if backup_path:
                 success_message += f"\n\nPrevious version backed up as: {os.path.basename(backup_path)}"
             
             messagebox.showinfo("Success", success_message)
             return True
-            
-        except subprocess.CalledProcessError:
-            messagebox.showerror("Error", "Encryption failed")
-            return False
         except Exception as e:
             messagebox.showerror("Error", f"Unexpected error: {str(e)}")
             return False
-        finally:
-            # Ensure temp file is cleaned up
-            if 'temp_path' in locals() and os.path.exists(temp_path):
-                os.unlink(temp_path)
     
     def get_filename_dialog(self, title, directory):
         """Simple dialog to get filename from user"""
@@ -415,13 +351,6 @@ class GPGGUI:
         self.root.wait_window(filename_window)
         return result[0]
 
-    def apply_macos_theme(self, window):
-        """Apply consistent macOS theming to any window"""
-        if platform.system() == "Darwin":
-            window.configure(bg='#f5f5f5')
-            # Force update to ensure background is applied
-            window.update_idletasks()
-
     def load_last_directory(self):
         """Load the last used directory from a file"""
         config_file = os.path.expanduser("~") + "/.gpg_gui_config"
@@ -439,7 +368,7 @@ class GPGGUI:
 if __name__ == "__main__":
     try:
         root = tk.Tk()
-        app = GPGGUI(root)
+        app = GpgGui(root)
         root.mainloop()
     except Exception as e:
         print(f"Application error: {e}")
