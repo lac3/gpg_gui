@@ -12,9 +12,9 @@ class GpgGui:
         self.root = root
         self.root.title("GPG File Encryption/Decryption")
         self.root.geometry("500x300+400+200")
-        self.passphrase = None
-        self.output_file = None
-
+        self.save_to_new_file = tk.BooleanVar()
+        self.new_passphrase = tk.BooleanVar()
+        
         # Set app icon
         icon_path = "GpgGui.png"
         if os.path.exists(icon_path):
@@ -68,7 +68,6 @@ class GpgGui:
             title=f"Select file to decrypt",
             filetypes=filetypes
         )
-        
         if not input_file:
             return
         self.gpg_process.file_path = input_file
@@ -82,7 +81,7 @@ class GpgGui:
         try:
             content = self.gpg_process.decrypt()
         except Exception as e:
-            messagebox.showerror("Error", f"Unexpected error decrypting file: {str(e)}")
+            messagebox.showerror("Error", str(e))
             return
         
         if content:
@@ -113,12 +112,17 @@ class GpgGui:
     def show_content_window(self, content, title):
         # If content is None for now, it will be stored in a new output file
         if content is None:
-            self.output_file = None
+            self.gpg_process.file_path = None
+            self.save_to_new_file.set(True)
+            self.new_passphrase.set(True)
+        else:
+            self.save_to_new_file.set(False)
+            self.new_passphrase.set(False)
 
         """Show content in a text window with modify option"""
         content_window = tk.Toplevel(self.root)
         content_window.title(title)
-        content_window.geometry("600x500+350+150")
+        content_window.geometry("800x500+350+150")
         
         # Center the window
         content_window.transient(self.root)
@@ -154,7 +158,10 @@ class GpgGui:
             modify_btn.config(command=save_and_encrypt)
             # Disable close button during editing
             close_btn.config(state='disabled')
-        
+            # Enable change passphrase toggle and save to different file toggle
+            new_passphrase_toggle.config(state='normal')
+            new_file_toggle.config(state='normal')
+
         def save_and_encrypt():
             # Get modified content
             modified_content = text_area.get("1.0", tk.END).strip()
@@ -178,7 +185,15 @@ class GpgGui:
         close_btn = tk.Button(button_frame, text="Close", command=close_window, 
                               relief='raised', borderwidth=2)
         close_btn.pack(side='left', padx=10)
+
+        new_file_toggle = tk.Checkbutton(button_frame, text="New file", 
+                                   variable=self.save_to_new_file, state='disabled')
+        new_file_toggle.pack(side='left', padx=10)
         
+        new_passphrase_toggle = tk.Checkbutton(button_frame, text="New passphrase", 
+                                                variable=self.new_passphrase, state='disabled')
+        new_passphrase_toggle.pack(side='left', padx=10)
+
         if content is None:
             # For new files, start in edit mode
             text_area.config(state='normal')
@@ -186,10 +201,11 @@ class GpgGui:
             modify_btn.config(command=save_and_encrypt)
             close_btn.config(state='disabled')
             
+        content_window.protocol("WM_DELETE_WINDOW", close_window)
+        
     def get_passphrase(self, action):
-        # If passphrase was already entered when decrypting the file, use it
-        if action == "encrypt" and self.passphrase:
-            return self.passphrase
+        if action == "encrypt" and self.gpg_process.passphrase and not self.new_passphrase.get():
+            return self.gpg_process.passphrase
         
         # Create a new window for passphrase input
         pass_window = tk.Toplevel(self.root)
@@ -239,19 +255,20 @@ class GpgGui:
         tk.Button(button_frame, text="OK", command=on_ok, relief='raised', borderwidth=2).pack(side='left', padx=10)
         tk.Button(button_frame, text="Cancel", command=on_cancel, relief='raised', borderwidth=2).pack(side='left', padx=10)
         
+        pass_window.protocol("WM_DELETE_WINDOW", on_cancel)
         self.root.wait_window(pass_window)
 
         # If decrypting (for opening the file), store passphrase for when the content will be modified and reencrypted
         # If encrypting (for saving the file), reinitialize the passphrase
         if action == "decrypt":
-            self.passphrase = result[0]
+            self.gpg_process.passphrase = result[0]
         else:
-            self.passphrase = None  # Reinitialize the passphrase
+            self.gpg_process.passphrase = None  # Reinitialize the passphrase
         return result[0]
 
     def get_output_file(self):
-        if self.output_file:
-            return self.output_file
+        if self.gpg_process.file_path and not self.save_to_new_file.get():
+            return self.gpg_process.file_path
         
         initial_dir = self.last_directory if self.last_directory else os.path.expanduser("~")
         directory = filedialog.askdirectory(
@@ -271,12 +288,10 @@ class GpgGui:
             filename += '.gpg'
 
         output_file = os.path.join(directory, filename)
-        self.output_file = output_file
+        self.gpg_process.file_path = output_file
         return output_file
 
     def save_encrypted_content(self, content):
-        """Handle the complete save process: filename selection, backup, and encryption"""
-
         # Get output file
         output_file = self.get_output_file()
         if not output_file:
@@ -348,6 +363,7 @@ class GpgGui:
         tk.Button(button_frame, text="OK", command=on_ok, relief='raised', borderwidth=2).pack(side='left', padx=10)
         tk.Button(button_frame, text="Cancel", command=on_cancel, relief='raised', borderwidth=2).pack(side='left', padx=10)
         
+        filename_window.protocol("WM_DELETE_WINDOW", on_cancel)
         self.root.wait_window(filename_window)
         return result[0]
 

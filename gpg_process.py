@@ -67,7 +67,7 @@ class GpgProcess:
             with open(temp_path, 'r', encoding='utf-8') as f:
                 content = f.read()
         except subprocess.CalledProcessError:
-            raise ValueError("decrypt: Failed to decrypt file")
+            raise ValueError("Failed to decrypt file (wrong passphrase?)")
         except Exception as e:
             raise ValueError(f"decrypt: Unexpected error: {str(e)}")
         finally:
