@@ -1,5 +1,1 @@
-- option to change passphrase when saving
-- keep same filename by default, with option to change it
-- improve choice of folder and filename, more standard
-- keep a limmited history of backup files
 - sign the app package

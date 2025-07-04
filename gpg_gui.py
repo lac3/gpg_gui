@@ -2,6 +2,8 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 from gpg_process import GpgProcess
 import os
+import re
+
 # Set environment variable to suppress deprecation warning
 os.environ['TK_SILENCE_DEPRECATION'] = '1'
 
@@ -93,19 +95,32 @@ class GpgGui:
         """Backup existing file by adding timestamp to filename"""
         if os.path.exists(file_path):
             # Get file info
-            base_name = os.path.splitext(file_path)[0]
+            base_path = os.path.splitext(file_path)[0]
+            base_name = os.path.basename(base_path)
             extension = os.path.splitext(file_path)[1]
-            
+
             # Create timestamp
             from datetime import datetime
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             
             # Create backup filename
-            backup_path = f"{base_name}_{timestamp}{extension}"
+            backup_path = f"{base_path}_{timestamp}{extension}"
+            
+            # clean up old backup files by sorting by timestamp in filename and deleting the oldest ones
+            # but keep at least 5 backups
+            keep_backups = 2
+            pattern = re.compile(f"^{base_name}_(\\d{{8}})_(\\d{{6}}).*{extension}$")
+                        
+            backup_files = [f for f in os.listdir(os.path.dirname(file_path)) if pattern.match(f)]
+            backup_files.sort(key=lambda x: int(pattern.match(x).group(1)+pattern.match(x).group(2)))
+            for old_backup in backup_files[:-keep_backups]:
+                print(pattern.match(old_backup).group(1)+pattern.match(old_backup).group(2))
+                print(f"Deleting old backup: {old_backup}")
+                os.remove(os.path.join(os.path.dirname(file_path), old_backup))
             
             # Rename existing file
             os.rename(file_path, backup_path)
-            
+
             return backup_path
         return None
     
@@ -270,24 +285,19 @@ class GpgGui:
         if self.gpg_process.file_path and not self.save_to_new_file.get():
             return self.gpg_process.file_path
         
+        # use asksaveasfile to get the filename
         initial_dir = self.last_directory if self.last_directory else os.path.expanduser("~")
-        directory = filedialog.askdirectory(
-            title="Select directory to save file",
-            initialdir=initial_dir
+        output_file = filedialog.asksaveasfilename(
+            title="Select filename to save file",
+            initialdir=initial_dir,
+            defaultextension=".gpg"
         )
-        if not directory:
+        if not output_file:
             return False
-            
+        directory = os.path.dirname(output_file)
         self.save_last_directory(directory)
-        
-        filename = self.get_filename_dialog("Enter filename (without .gpg extension)", directory)
-        if not filename:
-            return False
-
-        if not filename.endswith('.gpg'):
-            filename += '.gpg'
-
-        output_file = os.path.join(directory, filename)
+        if not output_file.endswith('.gpg'):
+            output_file += '.gpg'
         self.gpg_process.file_path = output_file
         return output_file
 
