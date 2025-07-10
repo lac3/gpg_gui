@@ -59,6 +59,7 @@ class GpgProcess:
                 self.gpg_path,
                 "--batch",
                 "--yes",
+                "--pinentry-mode=loopback",  # Add this
                 "--decrypt",
                 "--passphrase", self.passphrase,
                 "--output", temp_path,
