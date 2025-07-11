@@ -6,11 +6,10 @@ Use a private key for encryption
   - error if no key was selected
 
 Secret keys
-- initially, list the secret keys
+- command to list the secret keys => ok
   - allow to select one for encryption, then store the selected key
 - command to import a secret key
   - then automatically select it
 - command to export the selected secret key (using the passphrase associated with it)
-- command to list secret keys
 - command to create a key pair (with email and passphrase as input)
  

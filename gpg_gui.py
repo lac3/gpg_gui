@@ -56,7 +56,9 @@ class GpgGui:
                  relief='raised', borderwidth=2).pack(side='left', padx=10)
         tk.Button(button_frame, text="Decrypt & View", command=self.decrypt, 
                  relief='raised', borderwidth=2).pack(side='left', padx=10)
-        
+        tk.Button(button_frame, text="Manage Keys", command=self.manage_keys, 
+                 relief='raised', borderwidth=2).pack(side='left', padx=10)
+
         # Close button
         close_button = tk.Button(main_frame, text="Close", command=root.destroy, 
                                relief='raised', borderwidth=2)
@@ -390,6 +392,139 @@ class GpgGui:
         config_file = os.path.expanduser("~") + "/.gpg_gui_config"
         with open(config_file, 'w') as f:
             f.write(directory)
+
+    def manage_keys(self):
+        key_window = tk.Toplevel(self.root)
+        key_window.title("Select GPG Key")
+        key_window.geometry("600x400")
+        key_window.transient(self.root)
+        key_window.grab_set()
+
+        # Create listbox with scrollbar
+        frame = tk.Frame(key_window, padx=20, pady=20)
+        frame.pack(fill='both', expand=True)
+
+        listbox = tk.Listbox(frame, width=70, height=15)
+        scrollbar = tk.Scrollbar(frame, orient="vertical", command=listbox.yview)
+        listbox.configure(yscrollcommand=scrollbar.set)
+
+        listbox.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # Populate listbox with keys
+        for i, key in enumerate(self.gpg_process.secret_keys):
+            listbox.insert(tk.END, f"{key[1]} ({key[0]})")
+            # Highlight currently selected key if any
+            if self.gpg_process.selected_key and key == self.gpg_process.selected_key:
+                listbox.selection_set(i)
+
+        def on_select():
+            selection = listbox.curselection()
+            if selection:
+                self.gpg_process.selected_key = self.gpg_process.secret_keys[selection[0]]
+                key_window.destroy()
+            else:
+                messagebox.showwarning("Warning", "Please select a key to select")
+
+        def on_delete():
+            selection = listbox.curselection()
+            if selection:
+                # Get the selected key info for confirmation
+                selected_key = self.gpg_process.secret_keys[selection[0]]
+                key_info = f"{selected_key[1]} ({selected_key[0]})"
+                
+                # Show confirmation dialog
+                if messagebox.askyesno("Confirm Deletion", f"Are you sure you want to delete this key?\n\n{key_info}"):
+                    try:
+                        self.gpg_process.delete_key(selected_key[0])
+                        messagebox.showinfo("Success", "Key deleted successfully")
+                        # Refresh the listbox instead of closing
+                        listbox.delete(0, tk.END)
+                        for i, key in enumerate(self.gpg_process.secret_keys):
+                            listbox.insert(tk.END, f"{key[1]} ({key[0]})")
+                    except Exception as e:
+                        messagebox.showerror("Error", f"Failed to delete key: {str(e)}")
+            else:
+                messagebox.showwarning("Warning", "Please select a key to delete")
+
+        def on_create():
+            # Create dialog for name and email
+            create_window = tk.Toplevel(key_window)
+            create_window.title("Create New GPG Key")
+            create_window.geometry("400x300")
+            create_window.transient(key_window)
+            create_window.grab_set()
+            
+            frame = tk.Frame(create_window, padx=20, pady=20)
+            frame.pack(fill='both', expand=True)
+            
+            tk.Label(frame, text="Enter key details:").pack(pady=5)
+            
+            # Name entry
+            tk.Label(frame, text="Name:").pack(anchor='w')
+            name_var = tk.StringVar()
+            name_entry = tk.Entry(frame, textvariable=name_var, width=40)
+            name_entry.pack(pady=5, fill='x')
+            
+            # Email entry
+            tk.Label(frame, text="Email:").pack(anchor='w')
+            email_var = tk.StringVar()
+            email_entry = tk.Entry(frame, textvariable=email_var, width=40)
+            email_entry.pack(pady=5, fill='x')
+            
+            # Passphrase entry
+            tk.Label(frame, text="Passphrase:").pack(anchor='w')
+            passphrase_var = tk.StringVar()
+            passphrase_entry = tk.Entry(frame, textvariable=passphrase_var, show="", width=40)
+            passphrase_entry.pack(pady=5, fill='x')
+            
+            def create_key():
+                name = name_var.get().strip()
+                email = email_var.get().strip()
+                passphrase = passphrase_var.get().strip()
+                if name and email and passphrase:
+                    try:
+                        self.gpg_process.create_key(email, name, passphrase)
+                        messagebox.showinfo("Success", "Key created successfully")
+                        create_window.destroy()
+                        # Refresh the listbox instead of closing
+                        listbox.delete(0, tk.END)
+                        for i, key in enumerate(self.gpg_process.secret_keys):
+                            listbox.insert(tk.END, f"{key[1]} ({key[0]})")
+                    except Exception as e:
+                        messagebox.showerror("Error", f"Failed to create key: {str(e)}")
+                else:
+                    messagebox.showwarning("Warning", "Please enter name, email and passphrase")
+            
+            def cancel():
+                create_window.destroy()
+            
+            # Buttons
+            button_frame = tk.Frame(frame)
+            button_frame.pack(pady=10)
+            
+            tk.Button(button_frame, text="OK", command=create_key).pack(side='left', padx=5)
+            tk.Button(button_frame, text="Cancel", command=cancel).pack(side='left', padx=5)
+            
+            name_entry.focus()
+            name_entry.bind('<Return>', lambda e: email_entry.focus())
+            email_entry.bind('<Return>', lambda e: passphrase_entry.focus())
+            passphrase_entry.bind('<Return>', lambda e: create_key())
+
+        def on_close():
+            key_window.destroy()
+
+        # Button frame
+        button_frame = tk.Frame(key_window)
+        button_frame.pack(pady=10)
+        
+        tk.Button(button_frame, text="Select", command=on_select).pack(side='left', padx=5)
+        tk.Button(button_frame, text="Delete", command=on_delete).pack(side='left', padx=5)
+        tk.Button(button_frame, text="Create", command=on_create).pack(side='left', padx=5)
+        tk.Button(button_frame, text="Close", command=on_close).pack(side='left', padx=5)
+
+        print(self.gpg_process.secret_keys)
+        
 
 if __name__ == "__main__":
     try:
