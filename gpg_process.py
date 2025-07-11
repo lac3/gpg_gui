@@ -170,9 +170,9 @@ Passphrase: {passphrase}
     def import_key(self, key_file: str, passphrase: str):
         try:
             cmd = [self.gpg_path,
-                   "--import", key_file,
+                   "--pinentry-mode=loopback",
                    "--passphrase", passphrase,
-                   "--pinentry-mode=loopback"]
+                   "--import", key_file]
             subprocess.run(cmd, check=True)
             self.list_secret_keys()
         except subprocess.CalledProcessError:
@@ -180,15 +180,18 @@ Passphrase: {passphrase}
         except Exception as e:
             raise ValueError(f"unexpected gpg error: {str(e)}")
     
-    def export_key(self, fingerprint: str, output_file: str):
+    def export_key(self, fingerprint: str, output_file: str, passphrase: str):
         try:
-            subprocess.run([
-                self.gpg_path,
-                "--armor",
-                "--export",
-                fingerprint,
-                "--output", output_file
-            ], check=True)
+            with open(output_file, "w") as f:
+                cmd = [
+                    self.gpg_path,
+                    "--armor",
+                    "--export-secret-keys",
+                    "--pinentry-mode=loopback",
+                    "--passphrase", passphrase,
+                    fingerprint
+                ]
+                subprocess.run(cmd, check=True, stdout=f)
         except subprocess.CalledProcessError:
             raise ValueError("export_key: Failed to export key")
         except Exception as e:

@@ -267,7 +267,7 @@ class GpgGui:
         
         # Create a new window for passphrase input
         pass_window = tk.Toplevel(self.root)
-        pass_window.title(f"Enter Passphrase for {action.title()}ion")
+        pass_window.title(f"Enter Passphrase to {action.title()}")
         pass_window.geometry("400x180+450+300")
         
         # Center the window
@@ -275,7 +275,7 @@ class GpgGui:
         pass_window.grab_set()
         
         # Add widgets
-        tk.Label(pass_window, text=f"Enter passphrase for {action}ion:", 
+        tk.Label(pass_window, text=f"Enter passphrase to {action.title()}:", 
                 bg='#f0f0f0').pack(pady=10)
         
         pass_var = tk.StringVar()
@@ -528,6 +528,7 @@ class GpgGui:
                 title="Select key file to import",
                 filetypes=filetypes
             )
+            print(import_file)
             if import_file:
                 # Get passphrase for import
                 passphrase = self.get_passphrase("import")
@@ -547,6 +548,7 @@ class GpgGui:
         def on_export():
             selection = listbox.curselection()
             if selection:
+                selected_key = self.gpg_process.secret_keys[selection[0]]
                 filetypes = [("GPG key files", "*.asc")]
                 export_file = filedialog.asksaveasfilename(
                     title="Save exported key as",
@@ -554,8 +556,12 @@ class GpgGui:
                     defaultextension=".asc"
                 )
                 if export_file:
+                    # Prompt for passphrase
+                    passphrase = self.get_passphrase("export")
+                    if not passphrase:
+                        return
                     try:
-                        self.gpg_process.export_key(selected_key[0], export_file)
+                        self.gpg_process.export_key(selected_key[0], export_file, passphrase)
                         messagebox.showinfo("Success", f"Key exported successfully to {export_file}")
                     except Exception as e:
                         messagebox.showerror("Error", f"Failed to export key: {str(e)}")

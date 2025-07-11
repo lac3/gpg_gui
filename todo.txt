@@ -1,1 +1,2 @@
-- check import and export key
+- check when we should use a previous passphrase and when to ask for it
+- check decryption on iPhone
