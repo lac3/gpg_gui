@@ -56,8 +56,34 @@ class GpgGui:
                  relief='raised', borderwidth=2).pack(side='left', padx=10)
         tk.Button(button_frame, text="Decrypt & View", command=self.decrypt, 
                  relief='raised', borderwidth=2).pack(side='left', padx=10)
-        tk.Button(button_frame, text="Manage Keys", command=self.manage_keys, 
-                 relief='raised', borderwidth=2).pack(side='left', padx=10)
+        
+        # Use key toggle
+        self.use_key = tk.BooleanVar()
+        
+        def on_use_key_toggle():
+            if self.use_key.get() and not self.gpg_process.selected_key:
+                # Show key selection dialog if no key is selected
+                self.manage_keys()
+        
+        tk.Checkbutton(main_frame, text="Use Key for Encryption", variable=self.use_key, 
+                      command=on_use_key_toggle).pack(pady=5)
+        
+        # Manage Keys button (initially hidden)
+        self.manage_keys_button = tk.Button(button_frame, text="Manage Keys", command=self.manage_keys, 
+                 relief='raised', borderwidth=2)
+        
+        # Function to show/hide manage keys button
+        def update_manage_keys_button():
+            if self.use_key.get():
+                self.manage_keys_button.pack(side='left', padx=10)
+            else:
+                self.manage_keys_button.pack_forget()
+        
+        # Bind the toggle to update button visibility
+        self.use_key.trace_add('write', lambda *args: update_manage_keys_button())
+        
+        # Initial state
+        update_manage_keys_button()
 
         # Close button
         close_button = tk.Button(main_frame, text="Close", command=root.destroy, 
@@ -176,8 +202,23 @@ class GpgGui:
             # Disable close button during editing
             close_btn.config(state='disabled')
             # Enable change passphrase toggle and save to different file toggle
-            new_passphrase_toggle.config(state='normal')
+            if not self.use_key.get():
+                new_passphrase_toggle.config(state='normal')
             new_file_toggle.config(state='normal')
+            
+            # Set up passphrase toggle update
+            def update_passphrase_toggle():
+                try:
+                    if self.use_key.get():
+                        new_passphrase_toggle.config(state='disabled')
+                    else:
+                        new_passphrase_toggle.config(state='normal')
+                except tk.TclError:
+                    # Widget doesn't exist yet, ignore
+                    pass
+            
+            # Bind the toggle to update passphrase state
+            self.use_key.trace_add('write', lambda *args: update_passphrase_toggle())
 
         def save_and_encrypt():
             # Get modified content
@@ -210,7 +251,7 @@ class GpgGui:
         new_passphrase_toggle = tk.Checkbutton(button_frame, text="New passphrase", 
                                                 variable=self.new_passphrase, state='disabled')
         new_passphrase_toggle.pack(side='left', padx=10)
-
+        
         if content is None:
             # For new files, start in edit mode
             text_area.config(state='normal')
@@ -239,6 +280,7 @@ class GpgGui:
         
         pass_var = tk.StringVar()
         show_pass = tk.BooleanVar()
+        show_pass.set(True)
         
         def toggle_password():
             if show_pass.get():
@@ -246,8 +288,9 @@ class GpgGui:
             else:
                 pass_entry.config(show="*")
                 
-        pass_entry = tk.Entry(pass_window, textvariable=pass_var, show="*", width=40)
+        pass_entry = tk.Entry(pass_window, textvariable=pass_var, show="", width=40)
         pass_entry.pack(pady=5)
+        pass_entry.focus()
         
         # Show password checkbox
         show_check = tk.Checkbutton(pass_window, text="Show passphrase", variable=show_pass, command=toggle_password)
@@ -310,74 +353,41 @@ class GpgGui:
             return False
         self.gpg_process.file_path = output_file
         
-        # Get passphrase
-        passphrase = self.get_passphrase("encrypt")
-        if not passphrase:
-            return False
-        self.gpg_process.passphrase = passphrase
+        if self.use_key.get():
+            # Use key for encryption
+            if not self.gpg_process.selected_key:
+                messagebox.showwarning("Warning", "Please select a key first")
+                return False
+            try:
+                self.gpg_process.encrypt_with_key(content)
+                success_message = f"Content encrypted and saved as: {output_file}"
+                messagebox.showinfo("Success", success_message)
+                return True
+            except Exception as e:
+                messagebox.showerror("Error", f"Unexpected error: {str(e)}")
+                return False
+        else:
+            # Use passphrase for encryption
+            passphrase = self.get_passphrase("encrypt")
+            if not passphrase:
+                return False
+            self.gpg_process.passphrase = passphrase
 
-        # Handle backup if file exists
-        backup_path = self.backup_existing_file(output_file)
+            # Handle backup if file exists
+            backup_path = self.backup_existing_file(output_file)
 
-        try:
-            self.gpg_process.encrypt(content)
+            try:
+                self.gpg_process.encrypt(content)
 
-            success_message = f"Content encrypted and saved as: {output_file}"
-            if backup_path:
-                success_message += f"\n\nPrevious version backed up as: {os.path.basename(backup_path)}"
-            
-            messagebox.showinfo("Success", success_message)
-            return True
-        except Exception as e:
-            messagebox.showerror("Error", f"Unexpected error: {str(e)}")
-            return False
-    
-    def get_filename_dialog(self, title, directory):
-        """Simple dialog to get filename from user"""
-        filename_window = tk.Toplevel(self.root)
-        filename_window.title(title)
-        filename_window.geometry("500x200+400+250")
-        
-        filename_window.transient(self.root)
-        filename_window.grab_set()
-        
-        # Frame
-        frame = tk.Frame(filename_window, padx=20, pady=20)
-        frame.pack(expand=True, fill='both')
-        
-        # Show selected directory
-        tk.Label(frame, text=f"Directory: {directory}", font=("Arial", 10)).pack(pady=5)
-        tk.Label(frame, text="Enter filename:").pack(pady=5)
-        
-        filename_var = tk.StringVar()
-        entry = tk.Entry(frame, textvariable=filename_var, width=50)
-        entry.pack(pady=10)
-        entry.focus()
-        
-        result = [None]
-        
-        def on_ok():
-            filename = filename_var.get().strip()
-            if filename:
-                result[0] = filename
-            filename_window.destroy()
-            
-        def on_cancel():
-            filename_window.destroy()
-            
-        # Bind Enter key to OK button
-        entry.bind('<Return>', lambda event: on_ok())
-        
-        # Buttons
-        button_frame = tk.Frame(frame)
-        button_frame.pack(pady=10)
-        
-        tk.Button(button_frame, text="OK", command=on_ok, relief='raised', borderwidth=2).pack(side='left', padx=10)
-        tk.Button(button_frame, text="Cancel", command=on_cancel, relief='raised', borderwidth=2).pack(side='left', padx=10)
-        
-        filename_window.protocol("WM_DELETE_WINDOW", on_cancel)
-        self.root.wait_window(filename_window)
-        return result[0]
+                success_message = f"Content encrypted and saved as: {output_file}"
+                if backup_path:
+                    success_message += f"\n\nPrevious version backed up as: {os.path.basename(backup_path)}"
+                
+                messagebox.showinfo("Success", success_message)
+                return True
+            except Exception as e:
+                messagebox.showerror("Error", f"Unexpected error: {str(e)}")
+                return False
 
     def load_last_directory(self):
         """Load the last used directory from a file"""
@@ -511,6 +521,47 @@ class GpgGui:
             email_entry.bind('<Return>', lambda e: passphrase_entry.focus())
             passphrase_entry.bind('<Return>', lambda e: create_key())
 
+        def on_import():
+            # Get file to import
+            filetypes = [("GPG key files", "*.asc")]
+            import_file = filedialog.askopenfilename(
+                title="Select key file to import",
+                filetypes=filetypes
+            )
+            if import_file:
+                # Get passphrase for import
+                passphrase = self.get_passphrase("import")
+                if not passphrase:
+                    return
+                
+                try:
+                    self.gpg_process.import_key(import_file, passphrase)
+                    messagebox.showinfo("Success", "Key imported successfully")
+                    # Refresh the listbox
+                    listbox.delete(0, tk.END)
+                    for i, key in enumerate(self.gpg_process.secret_keys):
+                        listbox.insert(tk.END, f"{key[1]} ({key[0]})")
+                except Exception as e:
+                    messagebox.showerror("Error", f"Failed to import key: {str(e)}")
+
+        def on_export():
+            selection = listbox.curselection()
+            if selection:
+                filetypes = [("GPG key files", "*.asc")]
+                export_file = filedialog.asksaveasfilename(
+                    title="Save exported key as",
+                    filetypes=filetypes,
+                    defaultextension=".asc"
+                )
+                if export_file:
+                    try:
+                        self.gpg_process.export_key(selected_key[0], export_file)
+                        messagebox.showinfo("Success", f"Key exported successfully to {export_file}")
+                    except Exception as e:
+                        messagebox.showerror("Error", f"Failed to export key: {str(e)}")
+            else:
+                messagebox.showwarning("Warning", "Please select a key to export")
+
         def on_close():
             key_window.destroy()
 
@@ -521,11 +572,12 @@ class GpgGui:
         tk.Button(button_frame, text="Select", command=on_select).pack(side='left', padx=5)
         tk.Button(button_frame, text="Delete", command=on_delete).pack(side='left', padx=5)
         tk.Button(button_frame, text="Create", command=on_create).pack(side='left', padx=5)
+        tk.Button(button_frame, text="Import", command=on_import).pack(side='left', padx=5)
+        tk.Button(button_frame, text="Export", command=on_export).pack(side='left', padx=5)
         tk.Button(button_frame, text="Close", command=on_close).pack(side='left', padx=5)
 
         print(self.gpg_process.secret_keys)
         
-
 if __name__ == "__main__":
     try:
         root = tk.Tk()

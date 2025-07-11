@@ -166,6 +166,60 @@ Passphrase: {passphrase}
             raise ValueError("gpg failed to create key")
         except Exception as e:
             raise ValueError(f"Unexpected error: {str(e)}")
+    
+    def import_key(self, key_file: str, passphrase: str):
+        try:
+            cmd = [self.gpg_path,
+                   "--import", key_file,
+                   "--passphrase", passphrase,
+                   "--pinentry-mode=loopback"]
+            subprocess.run(cmd, check=True)
+            self.list_secret_keys()
+        except subprocess.CalledProcessError:
+            raise ValueError("gpg failed to import key")
+        except Exception as e:
+            raise ValueError(f"unexpected gpg error: {str(e)}")
+    
+    def export_key(self, fingerprint: str, output_file: str):
+        try:
+            subprocess.run([
+                self.gpg_path,
+                "--armor",
+                "--export",
+                fingerprint,
+                "--output", output_file
+            ], check=True)
+        except subprocess.CalledProcessError:
+            raise ValueError("export_key: Failed to export key")
+        except Exception as e:
+            raise ValueError(f"export_key: Unexpected error: {str(e)}")
+    
+    def encrypt_with_key(self, content: str) -> None:
+        if not self.file_path:
+            raise ValueError("encrypt_with_key: File path is required")
+        if not self.selected_key:
+            raise ValueError("encrypt_with_key: No key selected")
+
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as temp_file:
+            temp_file.write(content)
+            temp_path = temp_file.name
+        
+        try:
+            # Encrypt the temporary file using the selected key
+            subprocess.run([
+                self.gpg_path,
+                "--batch",
+                "--yes",
+                "--recipient", self.selected_key[0],  # Use fingerprint as recipient
+                "--output", self.file_path,
+                "--encrypt", temp_path
+            ], check=True)
+        except subprocess.CalledProcessError:
+            raise ValueError("encrypt_with_key: Failed to encrypt file")
+        except Exception as e:
+            raise ValueError(f"encrypt_with_key: Unexpected error: {str(e)}")
+        finally:
+            os.unlink(temp_path)
             
 if __name__ == "__main__":
     gpg = GpgProcess()

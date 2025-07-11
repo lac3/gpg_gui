@@ -1,15 +1,1 @@
-Use a private key for encryption
-- decrypting: same gpg command (if the secret key is there)
-- encrypting:
-  - add a toggle "Symmetric"
-  - if symmmetric, disable the option to change the passphrase
-  - error if no key was selected
-
-Secret keys
-- command to list the secret keys => ok
-  - allow to select one for encryption, then store the selected key
-- command to import a secret key
-  - then automatically select it
-- command to export the selected secret key (using the passphrase associated with it)
-- command to create a key pair (with email and passphrase as input)
- 
+- check import and export key
