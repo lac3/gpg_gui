@@ -1,3 +1,20 @@
 [build-system]
 requires = ["setuptools>=61.0", "py2app"]
 build-backend = "setuptools.build_meta" 
+
+[tool.ruff]
+line-length = 88
+select = ["E", "F", "W", "I"]
+ignore = []
+
+[tool.black]
+line-length = 88
+target-version = ['py39']
+skip-string-normalization = false
+
+[mypy]
+python_version = 3.9
+ignore_missing_imports = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+warn_unused_ignores = true 

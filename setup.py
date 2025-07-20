@@ -8,24 +8,24 @@ Usage:
 
 from setuptools import setup
 
-APP = ['gpg_gui.py']
-DATA_FILES = [('', ['GpgGui.png'])]
+APP = ["gpg_gui.py"]
+DATA_FILES = [("", ["GpgGui.png"])]
 OPTIONS = {
-    'iconfile': '/Users/laurent/Code/gpg_gui/GpgGui.icns',
-    'plist': {
-        'CFBundleName': 'GpgGui',
-        'CFBundleDisplayName': 'GPG GUI',
-        'CFBundleVersion': '1.0.0',
-        'CFBundleIdentifier': 'com.gpggui.app'
+    "iconfile": "/Users/laurent/Code/gpg_gui/GpgGui.icns",
+    "plist": {
+        "CFBundleName": "GpgGui",
+        "CFBundleDisplayName": "GPG GUI",
+        "CFBundleVersion": "1.0.0",
+        "CFBundleIdentifier": "com.gpggui.app",
     },
-    'argv_emulation': False,
-    'semi_standalone': False,
-    'site_packages': True
+    "argv_emulation": False,
+    "semi_standalone": False,
+    "site_packages": True,
 }
 
 setup(
     name="GpgGui",
     app=APP,
     data_files=DATA_FILES,
-    options={'py2app': OPTIONS},
+    options={"py2app": OPTIONS},
 )
