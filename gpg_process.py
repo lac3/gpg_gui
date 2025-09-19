@@ -26,9 +26,7 @@ class GpgProcess:
         if not self.passphrase:
             raise ValueError("encrypt: Passphrase is required")
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", delete=False, suffix=".txt"
-        ) as temp_file:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as temp_file:
             temp_file.write(content)
             temp_path = temp_file.name
 
@@ -54,17 +52,53 @@ class GpgProcess:
         finally:
             os.unlink(temp_path)
 
+    def encrypt_with_key(self, content: str) -> None:
+        if not self.file_path:
+            raise ValueError("encrypt_with_key: File path is required")
+        if not self.selected_key:
+            raise ValueError("encrypt_with_key: No key selected")
+
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as temp_file:
+            temp_file.write(content)
+            temp_path = temp_file.name
+
+        try:
+            subprocess.run("echo reloadagent | gpg-connect-agent", shell=True, check=True)
+            # Encrypt the temporary file using the selected key
+            subprocess.run(
+                [
+                    self.gpg_path,
+                    "--batch",
+                    "--yes",
+                    "--recipient",
+                    self.selected_key[0],  # Use fingerprint as recipient
+                    "--output",
+                    self.file_path,
+                    "--encrypt",
+                    temp_path,
+                ],
+                check=True,
+            )
+        except subprocess.CalledProcessError:
+            raise ValueError("encrypt_with_key: Failed to encrypt file")
+        except Exception as e:
+            raise ValueError(f"encrypt_with_key: Unexpected error: {str(e)}")
+        finally:
+            os.unlink(temp_path)
+
     def decrypt(self) -> str:
         if not self.file_path:
             raise ValueError("decrypt: File path is required")
         if not self.passphrase:
             raise ValueError("decrypt: Passphrase is required")
 
-        # Create a temporary file for decryption ("Named" option because GPG needs a file to write to
+        # Create a temporary file for decryption
+        # "Named" option because GPG needs a file to write to
         with tempfile.NamedTemporaryFile(mode="w+b", delete=False) as temp_file:
             temp_path = temp_file.name
-        # to do: reinitialize gpg cache by calling "echo reloadagent | gpg-connect-agent"
+        # Clear GPG agent cache to force passphrase prompt
         try:
+            subprocess.run("echo reloadagent | gpg-connect-agent", shell=True, check=True)
             # Decrypt to temporary file
             subprocess.run(
                 [
@@ -109,9 +143,7 @@ class GpgProcess:
                 text=True,
             )
             if result.returncode != 0:
-                raise ValueError(
-                    f"list_secret_keys: Failed to list secret keys: {result.stderr}"
-                )
+                raise ValueError(f"list_secret_keys: Failed to list secret keys: {result.stderr}")
 
             # Parse the output
             keys: list[tuple[str, str]] = []
@@ -143,8 +175,13 @@ class GpgProcess:
 
     def delete_key(self, fingerprint: str):
         try:
+            # Delete the secret key first, then the public key (order is mandatory)
             subprocess.run(
                 [self.gpg_path, "--batch", "--yes", "--delete-secret-key", fingerprint],
+                check=True,
+            )
+            subprocess.run(
+                [self.gpg_path, "--batch", "--yes", "--delete-keys", fingerprint],
                 check=True,
             )
             # Refresh the key list
@@ -156,11 +193,10 @@ class GpgProcess:
 
     def create_key(self, email: str, name: str, passphrase: str):
         try:
-            with tempfile.NamedTemporaryFile(
-                mode="w", delete=False, suffix=".txt"
-            ) as temp_file:
+            with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as temp_file:
                 temp_path = temp_file.name
-                temp_file.write(f"""%echo Generate RSA + RSA key
+                temp_file.write(
+                    f"""%echo Generate RSA + RSA key
 Key-Type: RSA
 Key-Length: 2048
 Subkey-Type: RSA
@@ -173,12 +209,17 @@ Expire-Date: 0
 Passphrase: {passphrase}
 %commit
 %echo Done
-""")
+"""
+                )
                 temp_file.close()
 
-            subprocess.run(
-                [self.gpg_path, "--batch", "--gen-key", temp_path], check=True
-            )
+            subprocess.run([
+                self.gpg_path,
+                "--default-preference-list", "AES256 AES192 AES CAST5 SHA512 SHA256 SHA1 ZLIB BZIP2 ZIP Uncompressed",
+                "--batch",
+                "--gen-key",
+                temp_path
+            ], check=True)
             os.unlink(temp_path)
             # Refresh the key list
             print("created key")
@@ -186,9 +227,7 @@ Passphrase: {passphrase}
             # Find the key with matching name and email
             for fingerprint, key_email in self.secret_keys:
                 if key_email == f"{name} <{email}>":
-                    print(
-                        f"Setting trust and preferences for key {fingerprint} {key_email}"
-                    )
+                    print(f"Setting trust and preferences for key {fingerprint} {key_email}")
                     self.set_key_trust_and_prefs(fingerprint)
                     break
         except subprocess.CalledProcessError:
@@ -230,41 +269,6 @@ Passphrase: {passphrase}
             raise ValueError("export_key: Failed to export key")
         except Exception as e:
             raise ValueError(f"export_key: Unexpected error: {str(e)}")
-
-    def encrypt_with_key(self, content: str) -> None:
-        if not self.file_path:
-            raise ValueError("encrypt_with_key: File path is required")
-        if not self.selected_key:
-            raise ValueError("encrypt_with_key: No key selected")
-
-        with tempfile.NamedTemporaryFile(
-            mode="w", delete=False, suffix=".txt"
-        ) as temp_file:
-            temp_file.write(content)
-            temp_path = temp_file.name
-
-        try:
-            # Encrypt the temporary file using the selected key
-            subprocess.run(
-                [
-                    self.gpg_path,
-                    "--batch",
-                    "--yes",
-                    "--recipient",
-                    self.selected_key[0],  # Use fingerprint as recipient
-                    "--output",
-                    self.file_path,
-                    "--encrypt",
-                    temp_path,
-                ],
-                check=True,
-            )
-        except subprocess.CalledProcessError:
-            raise ValueError("encrypt_with_key: Failed to encrypt file")
-        except Exception as e:
-            raise ValueError(f"encrypt_with_key: Unexpected error: {str(e)}")
-        finally:
-            os.unlink(temp_path)
 
     def set_key_trust_and_prefs(self, fingerprint: str):
         try:

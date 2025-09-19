@@ -1,7 +1,7 @@
 import os
 import re
 import tkinter as tk
-from tkinter import filedialog, messagebox, scrolledtext, ttk
+from tkinter import filedialog, messagebox, scrolledtext
 
 from gpg_process import GpgProcess
 
@@ -121,9 +121,7 @@ class GpgGui:
         # Get input file
         filetypes = [("GPG files", "*.gpg")]
 
-        input_file = filedialog.askopenfilename(
-            title="Select file to decrypt", filetypes=filetypes
-        )
+        input_file = filedialog.askopenfilename(title="Select file to decrypt", filetypes=filetypes)
         if not input_file:
             return
         self.gpg_process.file_path = input_file
@@ -141,9 +139,7 @@ class GpgGui:
             return
 
         if content:
-            self.show_content_window(
-                content, f"Decrypted: {os.path.basename(input_file)}"
-            )
+            self.show_content_window(content, f"Decrypted: {os.path.basename(input_file)}")
         else:
             messagebox.showerror("Error", "Could not get decryption content")
 
@@ -168,17 +164,10 @@ class GpgGui:
             keep_backups = 2
             pattern = re.compile(f"^{base_name}_(\\d{{8}})_(\\d{{6}}).*{extension}$")
 
-            backup_files = [
-                f for f in os.listdir(os.path.dirname(file_path)) if pattern.match(f)
-            ]
-            backup_files.sort(
-                key=lambda x: int(pattern.match(x).group(1) + pattern.match(x).group(2))
-            )
+            backup_files = [f for f in os.listdir(os.path.dirname(file_path)) if pattern.match(f)]
+            backup_files.sort(key=lambda x: int(pattern.match(x).group(1) + pattern.match(x).group(2)))
             for old_backup in backup_files[:-keep_backups]:
-                print(
-                    pattern.match(old_backup).group(1)
-                    + pattern.match(old_backup).group(2)
-                )
+                print(pattern.match(old_backup).group(1) + pattern.match(old_backup).group(2))
                 print(f"Deleting old backup: {old_backup}")
                 os.remove(os.path.join(os.path.dirname(file_path), old_backup))
 
@@ -212,17 +201,11 @@ class GpgGui:
         content_frame.pack(expand=True, fill="both")
 
         # Label
-        label_text = (
-            "Enter your content to encrypt:"
-            if content is None
-            else "Decrypted content:"
-        )
+        label_text = "Enter your content to encrypt:" if content is None else "Decrypted content:"
         tk.Label(content_frame, text=label_text, font=("Arial", 12)).pack(pady=10)
 
         # Text area (initially read-only)
-        text_area = scrolledtext.ScrolledText(
-            content_frame, wrap=tk.WORD, width=70, height=20, state="disabled"
-        )
+        text_area = scrolledtext.ScrolledText(content_frame, wrap=tk.WORD, width=70, height=20, state="disabled")
         text_area.pack(expand=True, fill="both", pady=10)
 
         # Enable temporarily to set content
@@ -267,9 +250,7 @@ class GpgGui:
             modified_content = text_area.get("1.0", tk.END).strip()
 
             if not modified_content:
-                messagebox.showwarning(
-                    "Warning", "Please enter some content to encrypt."
-                )
+                messagebox.showwarning("Warning", "Please enter some content to encrypt.")
                 return
 
             # Use the new save method
@@ -324,11 +305,7 @@ class GpgGui:
         content_window.protocol("WM_DELETE_WINDOW", close_window)
 
     def get_passphrase(self, action):
-        if (
-            action == "encrypt"
-            and self.gpg_process.passphrase
-            and not self.new_passphrase.get()
-        ):
+        if action == "encrypt" and self.gpg_process.passphrase and not self.new_passphrase.get():
             return self.gpg_process.passphrase
 
         # Create a new window for passphrase input
@@ -341,9 +318,7 @@ class GpgGui:
         pass_window.grab_set()
 
         # Add widgets
-        tk.Label(
-            pass_window, text=f"Enter passphrase to {action.title()}:", bg="#f0f0f0"
-        ).pack(pady=10)
+        tk.Label(pass_window, text=f"Enter passphrase to {action.title()}:", bg="#f0f0f0").pack(pady=10)
 
         pass_var = tk.StringVar()
         show_pass = tk.BooleanVar()
@@ -384,9 +359,7 @@ class GpgGui:
         button_frame = tk.Frame(pass_window)
         button_frame.pack(pady=10)
 
-        tk.Button(
-            button_frame, text="OK", command=on_ok, relief="raised", borderwidth=2
-        ).pack(side="left", padx=10)
+        tk.Button(button_frame, text="OK", command=on_ok, relief="raised", borderwidth=2).pack(side="left", padx=10)
         tk.Button(
             button_frame,
             text="Cancel",
@@ -411,9 +384,7 @@ class GpgGui:
             return self.gpg_process.file_path
 
         # use asksaveasfile to get the filename
-        initial_dir = (
-            self.last_directory if self.last_directory else os.path.expanduser("~")
-        )
+        initial_dir = self.last_directory if self.last_directory else os.path.expanduser("~")
         output_file = filedialog.asksaveasfilename(
             title="Select filename to save file",
             initialdir=initial_dir,
@@ -513,9 +484,7 @@ class GpgGui:
         def on_select():
             selection = listbox.curselection()
             if selection:
-                self.gpg_process.selected_key = self.gpg_process.secret_keys[
-                    selection[0]
-                ]
+                self.gpg_process.selected_key = self.gpg_process.secret_keys[selection[0]]
                 key_window.destroy()
             else:
                 messagebox.showwarning("Warning", "Please select a key to select")
@@ -572,9 +541,7 @@ class GpgGui:
             # Passphrase entry
             tk.Label(frame, text="Passphrase:").pack(anchor="w")
             passphrase_var = tk.StringVar()
-            passphrase_entry = tk.Entry(
-                frame, textvariable=passphrase_var, show="", width=40
-            )
+            passphrase_entry = tk.Entry(frame, textvariable=passphrase_var, show="", width=40)
             passphrase_entry.pack(pady=5, fill="x")
 
             def create_key():
@@ -593,9 +560,7 @@ class GpgGui:
                     except Exception as e:
                         messagebox.showerror("Error", f"Failed to create key: {str(e)}")
                 else:
-                    messagebox.showwarning(
-                        "Warning", "Please enter name, email and passphrase"
-                    )
+                    messagebox.showwarning("Warning", "Please enter name, email and passphrase")
 
             def cancel():
                 create_window.destroy()
@@ -604,12 +569,8 @@ class GpgGui:
             button_frame = tk.Frame(frame)
             button_frame.pack(pady=10)
 
-            tk.Button(button_frame, text="OK", command=create_key).pack(
-                side="left", padx=5
-            )
-            tk.Button(button_frame, text="Cancel", command=cancel).pack(
-                side="left", padx=5
-            )
+            tk.Button(button_frame, text="OK", command=create_key).pack(side="left", padx=5)
+            tk.Button(button_frame, text="Cancel", command=cancel).pack(side="left", padx=5)
 
             name_entry.focus()
             name_entry.bind("<Return>", lambda e: email_entry.focus())
@@ -619,9 +580,7 @@ class GpgGui:
         def on_import():
             # Get file to import
             filetypes = [("GPG key files", "*.asc")]
-            import_file = filedialog.askopenfilename(
-                title="Select key file to import", filetypes=filetypes
-            )
+            import_file = filedialog.askopenfilename(title="Select key file to import", filetypes=filetypes)
             print(import_file)
             if import_file:
                 # Get passphrase for import
@@ -655,12 +614,8 @@ class GpgGui:
                     if not passphrase:
                         return
                     try:
-                        self.gpg_process.export_key(
-                            selected_key[0], export_file, passphrase
-                        )
-                        messagebox.showinfo(
-                            "Success", f"Key exported successfully to {export_file}"
-                        )
+                        self.gpg_process.export_key(selected_key[0], export_file, passphrase)
+                        messagebox.showinfo("Success", f"Key exported successfully to {export_file}")
                     except Exception as e:
                         messagebox.showerror("Error", f"Failed to export key: {str(e)}")
             else:
@@ -673,24 +628,12 @@ class GpgGui:
         button_frame = tk.Frame(key_window)
         button_frame.pack(pady=10)
 
-        tk.Button(button_frame, text="Select", command=on_select).pack(
-            side="left", padx=5
-        )
-        tk.Button(button_frame, text="Delete", command=on_delete).pack(
-            side="left", padx=5
-        )
-        tk.Button(button_frame, text="Create", command=on_create).pack(
-            side="left", padx=5
-        )
-        tk.Button(button_frame, text="Import", command=on_import).pack(
-            side="left", padx=5
-        )
-        tk.Button(button_frame, text="Export", command=on_export).pack(
-            side="left", padx=5
-        )
-        tk.Button(button_frame, text="Close", command=on_close).pack(
-            side="left", padx=5
-        )
+        tk.Button(button_frame, text="Select", command=on_select).pack(side="left", padx=5)
+        tk.Button(button_frame, text="Delete", command=on_delete).pack(side="left", padx=5)
+        tk.Button(button_frame, text="Create", command=on_create).pack(side="left", padx=5)
+        tk.Button(button_frame, text="Import", command=on_import).pack(side="left", padx=5)
+        tk.Button(button_frame, text="Export", command=on_export).pack(side="left", padx=5)
+        tk.Button(button_frame, text="Close", command=on_close).pack(side="left", padx=5)
 
         print(self.gpg_process.secret_keys)
 

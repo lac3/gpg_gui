@@ -9,9 +9,7 @@ def install_gpg():
     try:
         subprocess.run(["brew", "--version"], check=True, capture_output=True)
     except (subprocess.CalledProcessError, FileNotFoundError):
-        print(
-            "Homebrew not found. Please run run_gpg_gui.command first to install dependencies."
-        )
+        print("Homebrew not found. Please run run_gpg_gui.command first to install dependencies.")
         return False
 
     # Install GPG

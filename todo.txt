@@ -1,4 +1,1 @@
-- check when we should use a previous passphrase and when to ask for it
 - check decryption on iPhone
-- also delete public keys (they accumulate)
-- reinitialize gpg cache by calling "echo reloadagent | gpg-connect-agent"
