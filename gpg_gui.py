@@ -167,8 +167,6 @@ class GpgGui:
             backup_files = [f for f in os.listdir(os.path.dirname(file_path)) if pattern.match(f)]
             backup_files.sort(key=lambda x: int(pattern.match(x).group(1) + pattern.match(x).group(2)))
             for old_backup in backup_files[:-keep_backups]:
-                print(pattern.match(old_backup).group(1) + pattern.match(old_backup).group(2))
-                print(f"Deleting old backup: {old_backup}")
                 os.remove(os.path.join(os.path.dirname(file_path), old_backup))
 
             # Rename existing file
@@ -231,20 +229,6 @@ class GpgGui:
                 new_passphrase_toggle.config(state="normal")
             new_file_toggle.config(state="normal")
 
-            # Set up passphrase toggle update
-            def update_passphrase_toggle():
-                try:
-                    if self.use_key.get():
-                        new_passphrase_toggle.config(state="disabled")
-                    else:
-                        new_passphrase_toggle.config(state="normal")
-                except tk.TclError:
-                    # Widget doesn't exist yet, ignore
-                    pass
-
-            # Bind the toggle to update passphrase state
-            self.use_key.trace_add("write", lambda *args: update_passphrase_toggle())
-
         def save_and_encrypt():
             # Get modified content
             modified_content = text_area.get("1.0", tk.END).strip()
@@ -294,6 +278,10 @@ class GpgGui:
             state="disabled",
         )
         new_passphrase_toggle.pack(side="left", padx=10)
+        
+        # Ensure checkbox reflects current state when using keys
+        if self.use_key.get():
+            self.new_passphrase.set(False)
 
         if content is None:
             # For new files, start in edit mode
@@ -406,41 +394,30 @@ class GpgGui:
             return False
         self.gpg_process.file_path = output_file
 
-        if self.use_key.get():
-            # Use key for encryption
-            if not self.gpg_process.selected_key:
-                messagebox.showwarning("Warning", "Please select a key first")
-                return False
-            try:
-                self.gpg_process.encrypt_with_key(content)
-                success_message = f"Content encrypted and saved as: {output_file}"
-                messagebox.showinfo("Success", success_message)
-                return True
-            except Exception as e:
-                messagebox.showerror("Error", f"Unexpected error: {str(e)}")
-                return False
-        else:
-            # Use passphrase for encryption
+        if self.use_key.get() and not self.gpg_process.selected_key:
+            messagebox.showwarning("Warning", "Please select a key first")
+            return False
+
+        if not self.use_key.get():
             passphrase = self.get_passphrase("encrypt")
             if not passphrase:
                 return False
             self.gpg_process.passphrase = passphrase
 
-            # Handle backup if file exists
-            backup_path = self.backup_existing_file(output_file)
-
-            try:
+        backup_path = self.backup_existing_file(output_file)
+        try:
+            if self.use_key.get():
+                self.gpg_process.encrypt_with_key(content)
+            else:
                 self.gpg_process.encrypt(content)
-
-                success_message = f"Content encrypted and saved as: {output_file}"
-                if backup_path:
-                    success_message += f"\n\nPrevious version backed up as: {os.path.basename(backup_path)}"
-
-                messagebox.showinfo("Success", success_message)
-                return True
-            except Exception as e:
-                messagebox.showerror("Error", f"Unexpected error: {str(e)}")
-                return False
+            success_message = f"Content encrypted and saved as: {output_file}"
+            if backup_path:
+                success_message += f"\n\nPrevious version backed up as: {os.path.basename(backup_path)}"
+            messagebox.showinfo("Success", success_message)
+            return True
+        except Exception as e:
+            messagebox.showerror("Error", f"Unexpected error: {str(e)}")
+            return False
 
     def load_last_directory(self):
         """Load the last used directory from a file"""
@@ -581,7 +558,6 @@ class GpgGui:
             # Get file to import
             filetypes = [("GPG key files", "*.asc")]
             import_file = filedialog.askopenfilename(title="Select key file to import", filetypes=filetypes)
-            print(import_file)
             if import_file:
                 # Get passphrase for import
                 passphrase = self.get_passphrase("import")
@@ -634,9 +610,6 @@ class GpgGui:
         tk.Button(button_frame, text="Import", command=on_import).pack(side="left", padx=5)
         tk.Button(button_frame, text="Export", command=on_export).pack(side="left", padx=5)
         tk.Button(button_frame, text="Close", command=on_close).pack(side="left", padx=5)
-
-        print(self.gpg_process.secret_keys)
-
 
 if __name__ == "__main__":
     try:

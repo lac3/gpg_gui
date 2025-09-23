@@ -222,12 +222,10 @@ Passphrase: {passphrase}
             ], check=True)
             os.unlink(temp_path)
             # Refresh the key list
-            print("created key")
             self.list_secret_keys()
             # Find the key with matching name and email
             for fingerprint, key_email in self.secret_keys:
                 if key_email == f"{name} <{email}>":
-                    print(f"Setting trust and preferences for key {fingerprint} {key_email}")
                     self.set_key_trust_and_prefs(fingerprint)
                     break
         except subprocess.CalledProcessError:
@@ -300,4 +298,3 @@ Passphrase: {passphrase}
 if __name__ == "__main__":
     gpg = GpgProcess()
     gpg.list_secret_keys()
-    print(gpg.secret_keys)

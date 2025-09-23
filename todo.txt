@@ -1,0 +1,2 @@
+- memorize selected key in preferences
+- set default to using keys for encryption
