@@ -4,6 +4,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext
 
 from gpg_process import GpgProcess
+from preferences import Preferences
 
 # Set environment variable to suppress deprecation warning
 os.environ["TK_SILENCE_DEPRECATION"] = "1"
@@ -40,8 +41,14 @@ class GpgGui:
         self.root.lift()
         self.root.focus_force()
 
-        # Load last used directory
-        self.last_directory = self.load_last_directory()
+        # Initialize preferences and load settings
+        self.preferences = Preferences()
+        self.last_directory = self.preferences.load_last_directory()
+
+        # Load saved selected key
+        saved_key = self.preferences.get_selected_key()
+        if saved_key and saved_key in self.gpg_process.secret_keys:
+            self.gpg_process.selected_key = saved_key
 
         # Create main frame
         main_frame = tk.Frame(root, padx=20, pady=20)
@@ -72,8 +79,12 @@ class GpgGui:
 
         # Use private / public key toggle
         self.use_key = tk.BooleanVar()
+        # Load saved preference for encryption method
+        self.use_key.set(self.preferences.get_use_key_encryption())
 
         def on_use_key_toggle():
+            # Save preference when changed
+            self.preferences.set_use_key_encryption(self.use_key.get())
             if self.use_key.get() and not self.gpg_process.selected_key:
                 # Show key selection dialog if no key is selected
                 self.manage_keys()
@@ -95,14 +106,14 @@ class GpgGui:
         )
 
         # Function to show/hide manage keys button
-        def update_manage_keys_button():
+        def update_manage_keys_button(*args):
             if self.use_key.get():
                 self.manage_keys_button.pack(side="left", padx=10)
             else:
                 self.manage_keys_button.pack_forget()
 
         # Bind the toggle to update button visibility
-        self.use_key.trace_add("write", lambda *args: update_manage_keys_button())
+        self.use_key.trace_add("write", update_manage_keys_button)
 
         # Initial state
         update_manage_keys_button()
@@ -278,7 +289,7 @@ class GpgGui:
             state="disabled",
         )
         new_passphrase_toggle.pack(side="left", padx=10)
-        
+
         # Ensure checkbox reflects current state when using keys
         if self.use_key.get():
             self.new_passphrase.set(False)
@@ -331,7 +342,7 @@ class GpgGui:
         )
         show_check.pack(pady=5)
 
-        result = [None]  # Use list to store result
+        result = [None]
 
         def on_ok():
             result[0] = pass_var.get()
@@ -381,7 +392,7 @@ class GpgGui:
         if not output_file:
             return False
         directory = os.path.dirname(output_file)
-        self.save_last_directory(directory)
+        self.preferences.save_last_directory(directory)
         if not output_file.endswith(".gpg"):
             output_file += ".gpg"
         self.gpg_process.file_path = output_file
@@ -419,19 +430,6 @@ class GpgGui:
             messagebox.showerror("Error", f"Unexpected error: {str(e)}")
             return False
 
-    def load_last_directory(self):
-        """Load the last used directory from a file"""
-        config_file = os.path.expanduser("~") + "/.gpg_gui_config"
-        if os.path.exists(config_file):
-            with open(config_file, "r") as f:
-                return f.read().strip()
-        return None
-
-    def save_last_directory(self, directory):
-        """Save the last used directory to a file"""
-        config_file = os.path.expanduser("~") + "/.gpg_gui_config"
-        with open(config_file, "w") as f:
-            f.write(directory)
 
     def manage_keys(self):
         key_window = tk.Toplevel(self.root)
@@ -461,10 +459,13 @@ class GpgGui:
         def on_select():
             selection = listbox.curselection()
             if selection:
-                self.gpg_process.selected_key = self.gpg_process.secret_keys[selection[0]]
+                selected_key = self.gpg_process.secret_keys[selection[0]]
+                self.gpg_process.selected_key = selected_key
+                # Save selected key to preferences
+                self.preferences.set_selected_key(selected_key)
                 key_window.destroy()
             else:
-                messagebox.showwarning("Warning", "Please select a key to select")
+                messagebox.showwarning("Warning", "Please first click a key to select")
 
         def on_delete():
             selection = listbox.curselection()
@@ -480,6 +481,10 @@ class GpgGui:
                 ):
                     try:
                         self.gpg_process.delete_key(selected_key[0])
+                        # Clear from preferences if this was the selected key
+                        if self.gpg_process.selected_key == selected_key:
+                            self.gpg_process.selected_key = None
+                            self.preferences.set_selected_key(None)
                         messagebox.showinfo("Success", "Key deleted successfully")
                         # Refresh the listbox instead of closing
                         listbox.delete(0, tk.END)
