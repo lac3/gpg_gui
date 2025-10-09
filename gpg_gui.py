@@ -213,15 +213,55 @@ class GpgGui:
         label_text = "Enter your content to encrypt:" if content is None else "Decrypted content:"
         tk.Label(content_frame, text=label_text, font=("Arial", 12)).pack(pady=10)
 
-        # Text area (initially read-only)
-        text_area = scrolledtext.ScrolledText(content_frame, wrap=tk.WORD, width=70, height=20, state="disabled")
+        # Text area with custom readonly behavior that allows copying
+        text_area = scrolledtext.ScrolledText(content_frame, wrap=tk.WORD, width=70, height=20, state="normal")
         text_area.pack(expand=True, fill="both", pady=10)
 
-        # Enable temporarily to set content
-        text_area.config(state="normal")
+        # Insert content
         if content is not None:
             text_area.insert("1.0", content)
+
+        # Set to disabled but override to allow selection and copying
         text_area.config(state="disabled")
+
+        # Keep track of last search term and position
+        find_state = {"term": "", "last_pos": "1.0"}
+
+        # Enable built-in find functionality with Cmd+F
+        def open_find():
+            # Use tkinter's built-in search dialog with previous search term as default
+            from tkinter import simpledialog
+            search_term = simpledialog.askstring("Find", "Enter text to find:", 
+                                                initialvalue=find_state["term"])
+            if search_term:
+                # If new search term or searching from beginning
+                if search_term != find_state["term"]:
+                    find_state["term"] = search_term
+                    find_state["last_pos"] = "1.0"
+
+                # Find next occurrence starting from last position
+                start_pos = f"{find_state['last_pos']}+{len(search_term)}c" if find_state["last_pos"] != "1.0" else "1.0"
+                pos = text_area.search(search_term, start_pos, tk.END, nocase=True)
+
+                # If not found, wrap around to beginning
+                if not pos:
+                    pos = text_area.search(search_term, "1.0", tk.END, nocase=True)
+
+                if pos:
+                    find_state["last_pos"] = pos
+                    text_area.see(pos)
+                    # Highlight the found text with a visible tag
+                    end_pos = f"{pos}+{len(search_term)}c"
+                    # Clear any previous highlights
+                    text_area.tag_remove("highlight", "1.0", tk.END)
+                    # Add highlight to found text
+                    text_area.tag_add("highlight", pos, end_pos)
+                    text_area.tag_config("highlight", background="yellow", foreground="black")
+                # If not found, just clear highlights (no message to avoid modal dialog issues)
+
+        # Bind Cmd+F (Command+F on macOS)
+        content_window.bind("<Command-f>", lambda e: open_find())
+        text_area.bind("<Command-f>", lambda e: open_find())
 
         # Button frame
         button_frame = tk.Frame(content_frame)

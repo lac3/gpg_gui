@@ -1,0 +1,5 @@
+xcode-select --install
+xcode-select -p
+sudo xcode-select --switch /Library/Developer/CommandLineTools
+sudo xcodebuild -license accept
+softwareupdate --install -a || true
