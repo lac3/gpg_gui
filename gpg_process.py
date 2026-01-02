@@ -70,6 +70,8 @@ class GpgProcess:
                     self.gpg_path,
                     "--batch",
                     "--yes",
+                    "--trust-model",
+                    "always",
                     "--recipient",
                     self.selected_key[0],  # Use fingerprint as recipient
                     "--output",

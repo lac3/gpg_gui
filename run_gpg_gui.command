@@ -20,8 +20,8 @@ check_homebrew() {
 
 # Function to find Python
 find_python() {
-    # Try Homebrew Python locations first (more reliable)
-    for python_path in "/opt/homebrew/bin/python3" "/usr/local/bin/python3"; do
+    # Try Homebrew Python locations first (check versioned names too)
+    for python_path in "/opt/homebrew/bin/python3.13" "/usr/local/bin/python3.13" "/opt/homebrew/bin/python3" "/usr/local/bin/python3"; do
         if [ -x "$python_path" ]; then
             echo "$python_path"
             return 0
@@ -53,7 +53,98 @@ if [ $? -ne 0 ]; then
     exit 0
 fi
 
-echo "Using Python: $($PYTHON_CMD --version)"
+echo "========== Python Diagnostics =========="
+echo "Python executable: $PYTHON_CMD"
+echo "Python version: $($PYTHON_CMD --version)"
+echo "Python location: $($PYTHON_CMD -c 'import sys; print(sys.executable)')"
+echo "Python version info: $($PYTHON_CMD -c 'import sys; print(sys.version_info[:3])')"
+echo ""
+echo "Available Python installations:"
+if [ -x "/opt/homebrew/bin/python3.13" ]; then
+    echo "  Homebrew (Apple Silicon): $(/opt/homebrew/bin/python3.13 --version 2>&1)"
+elif [ -x "/opt/homebrew/bin/python3" ]; then
+    echo "  Homebrew (Apple Silicon): $(/opt/homebrew/bin/python3 --version 2>&1)"
+else
+    echo "  Homebrew (Apple Silicon): Not found"
+fi
+if [ -x "/usr/local/bin/python3.13" ]; then
+    echo "  Homebrew (Intel): $(/usr/local/bin/python3.13 --version 2>&1)"
+elif [ -x "/usr/local/bin/python3" ]; then
+    echo "  Homebrew (Intel): $(/usr/local/bin/python3 --version 2>&1)"
+else
+    echo "  Homebrew (Intel): Not found"
+fi
+[ -x "/usr/bin/python3" ] && echo "  System: $(/usr/bin/python3 --version 2>&1)" || echo "  System: Not found"
+echo "========================================"
+
+# Check Python source and version
+PY_MAJOR=$($PYTHON_CMD -c "import sys; print(sys.version_info.major)")
+PY_MINOR=$($PYTHON_CMD -c "import sys; print(sys.version_info.minor)")
+PY_REAL_PATH=$($PYTHON_CMD -c 'import sys; print(sys.executable)')
+
+echo ""
+echo "Python source analysis:"
+NEEDS_HOMEBREW_PYTHON=false
+if [[ "$PY_REAL_PATH" == /opt/homebrew/* ]] || [[ "$PY_REAL_PATH" == /usr/local/* ]]; then
+    echo "✓ Using Homebrew Python (preferred)"
+elif [[ "$PY_REAL_PATH" == /Library/Developer/CommandLineTools/* ]]; then
+    echo "⚠ Using Xcode Command Line Tools Python (not recommended)"
+    echo "This Python often lacks proper package support."
+    NEEDS_HOMEBREW_PYTHON=true
+elif [[ "$PY_REAL_PATH" == /usr/bin/* ]]; then
+    echo "⚠ Using system Python (not recommended)"
+    NEEDS_HOMEBREW_PYTHON=true
+else
+    echo "? Using Python from: $PY_REAL_PATH"
+fi
+echo ""
+
+# Install Homebrew Python if needed
+if [ "$NEEDS_HOMEBREW_PYTHON" = true ] || [ "$PY_MAJOR" -lt 3 ] || { [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -lt 8 ]; }; then
+    if [ "$PY_MAJOR" -lt 3 ] || { [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -lt 8 ]; }; then
+        echo "WARNING: Python $PY_MAJOR.$PY_MINOR is too old. Python 3.8+ recommended."
+    fi
+    
+    echo "Installing Homebrew Python..."
+    
+    if brew install python@3.13; then
+        echo "✓ Python installation successful!"
+        # Update PATH to include newly installed Python
+        eval "$(/opt/homebrew/bin/brew shellenv 2>/dev/null || /usr/local/bin/brew shellenv 2>/dev/null)"
+        
+        # Force use of Homebrew Python (check versioned names too)
+        echo "Checking for Homebrew Python..."
+        if [ -x "/opt/homebrew/bin/python3.13" ]; then
+            PYTHON_CMD="/opt/homebrew/bin/python3.13"
+            echo "Found at: /opt/homebrew/bin/python3.13"
+        elif [ -x "/usr/local/bin/python3.13" ]; then
+            PYTHON_CMD="/usr/local/bin/python3.13"
+            echo "Found at: /usr/local/bin/python3.13"
+        elif [ -x "/opt/homebrew/bin/python3" ]; then
+            PYTHON_CMD="/opt/homebrew/bin/python3"
+            echo "Found at: /opt/homebrew/bin/python3"
+        elif [ -x "/usr/local/bin/python3" ]; then
+            PYTHON_CMD="/usr/local/bin/python3"
+            echo "Found at: /usr/local/bin/python3"
+        else
+            echo "Not found in Homebrew paths, using fallback"
+            # Fallback to find_python
+            PYTHON_CMD=$(find_python)
+        fi
+        
+        if [ -n "$PYTHON_CMD" ]; then
+            PY_MAJOR=$($PYTHON_CMD -c "import sys; print(sys.version_info.major)")
+            PY_MINOR=$($PYTHON_CMD -c "import sys; print(sys.version_info.minor)")
+            echo "Now using: $($PYTHON_CMD --version) from $($PYTHON_CMD -c 'import sys; print(sys.executable)')"
+        else
+            echo "ERROR: Failed to locate newly installed Python"
+        fi
+    else
+        echo "ERROR: Failed to install Python via Homebrew"
+        echo "Please install manually with: brew install python@3.13"
+    fi
+    echo ""
+fi
 
 # Check if tkinter is available, install if needed (only when interactive)
 if ! $PYTHON_CMD -c "import tkinter" &> /dev/null; then

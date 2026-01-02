@@ -64,15 +64,15 @@ class GpgGui:
 
         tk.Button(
             button_frame,
-            text="Create & Encrypt",
-            command=lambda: self.show_content_window(None, "New File Content"),
+            text="Decrypt & View",
+            command=self.decrypt,
             relief="raised",
             borderwidth=2,
         ).pack(side="left", padx=10)
         tk.Button(
             button_frame,
-            text="Decrypt & View",
-            command=self.decrypt,
+            text="Create & Encrypt",
+            command=lambda: self.show_content_window(None, "New File Content"),
             relief="raised",
             borderwidth=2,
         ).pack(side="left", padx=10)
