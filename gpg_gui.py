@@ -224,6 +224,9 @@ class GpgGui:
         # Set to disabled but override to allow selection and copying
         text_area.config(state="disabled")
 
+        # Keep track of the original (unsorted) content and current sort state
+        sort_state = {"original": content, "sorted": False}
+
         # Keep track of last search term and position
         find_state = {"term": "", "last_pos": "1.0"}
 
@@ -273,8 +276,9 @@ class GpgGui:
             # Change button text
             modify_btn.config(text="Save & Encrypt")
             modify_btn.config(command=save_and_encrypt)
-            # Disable close button during editing
+            # Disable close and sort buttons during editing
             close_btn.config(state="disabled")
+            sort_btn.config(state="disabled")
             # Enable change passphrase toggle and save to different file toggle
             if not self.use_key.get():
                 new_passphrase_toggle.config(state="normal")
@@ -295,6 +299,43 @@ class GpgGui:
         def close_window():
             content_window.destroy()
 
+        def toggle_sort():
+            was_editable = str(text_area.cget("state")) == "normal"
+
+            if not sort_state["sorted"]:
+                # Switching to sorted view: remember exact current text so we can restore it
+                sort_state["original"] = text_area.get("1.0", "end-1c")
+                # Drop a single trailing newline's empty element so it doesn't
+                # sort to the top as a blank first line; everything else is kept as-is
+                text_to_sort = sort_state["original"]
+                had_trailing_newline = text_to_sort.endswith("\n")
+                if had_trailing_newline:
+                    text_to_sort = text_to_sort[:-1]
+                lines = text_to_sort.split("\n") if text_to_sort else []
+                lines.sort(key=str.casefold)
+                display_text = "\n".join(lines)
+                sort_state["sorted"] = True
+                sort_btn.config(text="Unsort")
+            else:
+                # Restore original order
+                display_text = sort_state["original"]
+                sort_state["sorted"] = False
+                sort_btn.config(text="Sort A-Z")
+
+            text_area.config(state="normal")
+            try:
+                text_area.delete("1.0", tk.END)
+                text_area.insert("1.0", display_text)
+            except tk.TclError as e:
+                # Leave the view in a recoverable state rather than blank
+                text_area.delete("1.0", tk.END)
+                text_area.insert("1.0", sort_state["original"] or "")
+                sort_state["sorted"] = False
+                sort_btn.config(text="Sort A-Z")
+                messagebox.showerror("Sort failed", f"Could not sort content:\n{e}")
+            if not was_editable:
+                text_area.config(state="disabled")
+
         # Buttons
         modify_btn = tk.Button(
             button_frame,
@@ -313,6 +354,16 @@ class GpgGui:
             borderwidth=2,
         )
         close_btn.pack(side="left", padx=10)
+
+        sort_btn = tk.Button(
+            button_frame,
+            text="Sort A-Z",
+            command=toggle_sort,
+            relief="raised",
+            borderwidth=2,
+            state="disabled" if content is None else "normal",
+        )
+        sort_btn.pack(side="left", padx=10)
 
         new_file_toggle = tk.Checkbutton(
             button_frame,
