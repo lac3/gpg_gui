@@ -1,8 +1,8 @@
 class GpgGui < Formula
   desc "Simple graphical interface for GPG file encryption and decryption"
   homepage "https://github.com/lac3/gpg_gui"
-  url "https://github.com/lac3/gpg_gui/archive/refs/tags/v1.0.0.tar.gz"
-  sha256 "REPLACE_WITH_SHA256_OF_TARBALL"
+  url "https://github.com/lac3/gpg_gui/archive/refs/tags/v1.1.0.tar.gz"
+  sha256 "11e54579a9cee9817ea19c9cc2412e833d175e3dba9dec304b5d6dc1541ff801"
   head "https://github.com/lac3/gpg_gui.git", branch: "main"
 
   depends_on :macos

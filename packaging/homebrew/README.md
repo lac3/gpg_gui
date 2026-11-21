@@ -11,8 +11,8 @@
 
 ```bash
 # in this repo
-git tag v1.0.0 && git push origin v1.0.0
-curl -sL https://github.com/lac3/gpg_gui/archive/refs/tags/v1.0.0.tar.gz | shasum -a 256
+git tag v1.1.0 && git push origin v1.1.0
+curl -sL https://github.com/lac3/gpg_gui/archive/refs/tags/v1.1.0.tar.gz | shasum -a 256
 ```
 
 In the tap's `Formula/gpg-gui.rb`, update `url` (tag) and `sha256`, then commit and push.
