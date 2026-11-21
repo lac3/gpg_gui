@@ -20,7 +20,9 @@ A user-friendly graphical interface for GPG file encryption and decryption on Ma
 Requires [Homebrew](https://brew.sh).
 
 ```bash
-brew install lac3/tap/gpg-gui
+brew tap lac3/tap
+brew trust lac3/tap        # recent Homebrew versions require trusting third-party taps
+brew install gpg-gui
 ln -sf "$(brew --prefix gpg-gui)/GPG GUI.app" /Applications/
 ```
 
