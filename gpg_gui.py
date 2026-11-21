@@ -21,7 +21,7 @@ class GpgGui:
         self.new_passphrase = tk.BooleanVar()
 
         # Set app icon
-        icon_path = "GpgGui.png"
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "GpgGui.png")
         if os.path.exists(icon_path):
             try:
                 from tkinter import PhotoImage
@@ -36,6 +36,8 @@ class GpgGui:
             self.gpg_process = GpgProcess()
         except Exception as e:
             messagebox.showerror("Error", f"Failed to initialize GPG process: {str(e)}")
+            self.root.destroy()
+            raise SystemExit(1)
 
         # Bring window to front and give it focus
         self.root.lift()

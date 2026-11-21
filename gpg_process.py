@@ -3,22 +3,31 @@ import shutil
 import subprocess
 import tempfile
 
-from install_gpg import install_gpg
+# Homebrew (Apple Silicon / Intel) and other common GnuPG locations. Apps launched
+# from Finder don't inherit the shell PATH, so shutil.which() alone is not enough.
+GPG_CANDIDATES = [
+    "/opt/homebrew/bin/gpg",
+    "/usr/local/bin/gpg",
+    "/usr/local/MacGPG2/bin/gpg",
+]
+
+
+def find_gpg():
+    path = shutil.which("gpg")
+    if path:
+        return path
+    return next((p for p in GPG_CANDIDATES if os.access(p, os.X_OK)), None)
 
 
 class GpgProcess:
     def __init__(self, file_path=None, passphrase=None):
         self.file_path = file_path
         self.passphrase = passphrase
-        self.gpg_path = shutil.which("gpg")
-        self.list_secret_keys()
         self.selected_key = None
-
+        self.gpg_path = find_gpg()
         if not self.gpg_path:
-            if install_gpg():
-                self.gpg_path = shutil.which("gpg")
-            if not self.gpg_path:
-                raise FileNotFoundError("GPG installation failed")
+            raise FileNotFoundError("GnuPG (gpg) was not found. Install it with: brew install gnupg")
+        self.list_secret_keys()
 
     def encrypt(self, content: str) -> None:
         if not self.file_path:

@@ -16,13 +16,22 @@ A user-friendly graphical interface for GPG file encryption and decryption on Ma
 - **Key Selection**: Choose which key to use for encryption
 - **Key Deletion**: Remove unwanted keys 
 
-### Quick Start
-1. Clone or download this repository
-2. Run the setup script:
-   ```bash
-   ./run_gpg_gui.command
-   ```
-To create a standalone macOS application, one good option is to use Automator
+### Installation
+Requires [Homebrew](https://brew.sh).
+
+```bash
+brew install lac3/tap/gpg-gui
+ln -sf "$(brew --prefix gpg-gui)/GPG GUI.app" /Applications/
+```
+
+This installs GnuPG and Python with Tk as dependencies. Launch **GPG GUI** from Applications or Spotlight,
+or run `gpg-gui` in Terminal. Update with `brew upgrade gpg-gui`, remove with `brew uninstall gpg-gui`.
+
+### Running from source
+```bash
+brew install gnupg python-tk@3.13
+./run_gpg_gui.command
+```
 
 ## Usage
 
